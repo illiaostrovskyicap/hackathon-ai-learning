@@ -8,7 +8,8 @@ builder.Services.AddCors(options =>
     {
         policy. 
             WithOrigins(
-                "http://localhost:5173"
+                "http://localhost:5173",
+                "https://blue-sand-0d701e30f.7.azurestaticapps.net"
             )
             .AllowAnyHeader()
             .AllowAnyMethod();
