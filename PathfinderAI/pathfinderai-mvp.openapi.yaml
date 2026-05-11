@@ -1,0 +1,1168 @@
+openapi: 3.0.3
+info:
+  title: PathfinderAI MVP API
+  version: 0.1.0
+  description: |
+    OpenAPI contract for the PathfinderAI MVP backend.
+    Scope is limited to profile, onboarding, learning plan generation,
+    grounded learning assistant, progress tracking, and dashboard analytics.
+servers:
+  - url: https://api.pathfinderai.local
+    description: Local or placeholder environment
+tags:
+  - name: Account
+  - name: Onboarding
+  - name: Learning Plans
+  - name: Assistant
+  - name: Progress
+  - name: Analytics
+security:
+  - bearerAuth: []
+paths:
+  /api/me:
+    get:
+      tags: [Account]
+      summary: Get current user profile
+      operationId: getCurrentUser
+      responses:
+        '200':
+          description: Current user profile
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GetCurrentUserResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    patch:
+      tags: [Account]
+      summary: Update current user profile
+      operationId: updateCurrentUser
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateUserProfileRequest'
+      responses:
+        '200':
+          description: Updated current user profile
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GetCurrentUserResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    delete:
+      tags: [Account]
+      summary: Request account deletion
+      operationId: deleteCurrentUser
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DeleteAccountRequest'
+      responses:
+        '202':
+          description: Account deletion accepted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeleteAccountResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /api/onboarding/tracks:
+    get:
+      tags: [Onboarding]
+      summary: Get available career tracks
+      operationId: getCareerTracks
+      responses:
+        '200':
+          description: Supported career tracks
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GetCareerTracksResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /api/onboarding/status:
+    get:
+      tags: [Onboarding]
+      summary: Get onboarding completion status
+      operationId: getOnboardingStatus
+      responses:
+        '200':
+          description: Current onboarding status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OnboardingStatusResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /api/onboarding/complete:
+    post:
+      tags: [Onboarding]
+      summary: Complete onboarding and request initial learning plan
+      operationId: completeOnboarding
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CompleteOnboardingRequest'
+      responses:
+        '202':
+          description: Onboarding accepted and roadmap generation started
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CompleteOnboardingResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /api/learning-plans:
+    post:
+      tags: [Learning Plans]
+      summary: Generate or regenerate a learning plan
+      operationId: generateLearningPlan
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenerateLearningPlanRequest'
+      responses:
+        '202':
+          description: Learning plan generation accepted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenerateLearningPlanResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /api/learning-plans/active:
+    get:
+      tags: [Learning Plans]
+      summary: Get active learning plan for the current user
+      operationId: getActiveLearningPlan
+      responses:
+        '200':
+          description: Active learning plan
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GetLearningPlanResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/learning-plans/{learningPlanId}/regenerate:
+    post:
+      tags: [Learning Plans]
+      summary: Regenerate an existing learning plan
+      operationId: regenerateLearningPlan
+      parameters:
+        - $ref: '#/components/parameters/LearningPlanId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegenerateLearningPlanRequest'
+      responses:
+        '202':
+          description: Learning plan regeneration accepted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RegenerateLearningPlanResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/assistant/sessions:
+    post:
+      tags: [Assistant]
+      summary: Start a learning assistant session
+      operationId: startLearningAssistantSession
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StartLearningAssistantSessionRequest'
+      responses:
+        '201':
+          description: Assistant session created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StartLearningAssistantSessionResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /api/assistant/messages:
+    post:
+      tags: [Assistant]
+      summary: Ask the learning assistant a grounded question
+      operationId: askLearningAssistant
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AskLearningAssistantRequest'
+      responses:
+        '200':
+          description: Assistant answer
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AskLearningAssistantResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /api/learning-plans/{learningPlanId}/modules/{moduleId}:
+    patch:
+      tags: [Progress]
+      summary: Update progress state for a module
+      operationId: updateModuleProgress
+      parameters:
+        - $ref: '#/components/parameters/LearningPlanId'
+        - $ref: '#/components/parameters/ModuleId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateModuleProgressRequest'
+      responses:
+        '200':
+          description: Updated module progress
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UpdateModuleProgressResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/progress/activities:
+    post:
+      tags: [Progress]
+      summary: Log manual learning activity
+      operationId: logLearningActivity
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LogLearningActivityRequest'
+      responses:
+        '201':
+          description: Learning activity created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LogLearningActivityResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /api/dashboard/summary:
+    get:
+      tags: [Analytics]
+      summary: Get dashboard summary for the selected date range
+      operationId: getDashboardSummary
+      parameters:
+        - in: query
+          name: from
+          required: true
+          schema:
+            type: string
+            format: date
+        - in: query
+          name: to
+          required: true
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: Dashboard summary
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GetDashboardSummaryResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  parameters:
+    LearningPlanId:
+      in: path
+      name: learningPlanId
+      required: true
+      schema:
+        type: string
+        format: uuid
+    ModuleId:
+      in: path
+      name: moduleId
+      required: true
+      schema:
+        type: string
+        format: uuid
+
+  responses:
+    BadRequest:
+      description: Request validation failed
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetailsContract'
+    Unauthorized:
+      description: Request is not authenticated
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetailsContract'
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetailsContract'
+
+  schemas:
+    ExperienceLevel:
+      type: string
+      enum:
+        - Beginner
+        - Junior
+        - Middle
+        - Senior
+
+    PlanGenerationStatus:
+      type: string
+      enum:
+        - Pending
+        - InProgress
+        - Completed
+        - Failed
+
+    LearningPlanStatus:
+      type: string
+      enum:
+        - Draft
+        - Active
+        - Archived
+
+    LearningModuleStatus:
+      type: string
+      enum:
+        - NotStarted
+        - InProgress
+        - Completed
+        - Skipped
+
+    LearningResourceType:
+      type: string
+      enum:
+        - Article
+        - Video
+        - Exercise
+        - Documentation
+        - Course
+
+    AssistantMessageRole:
+      type: string
+      enum:
+        - System
+        - User
+        - Assistant
+
+    DateRange:
+      type: object
+      required: [from, to]
+      properties:
+        from:
+          type: string
+          format: date
+        to:
+          type: string
+          format: date
+
+    ProblemDetailsContract:
+      type: object
+      required: [code, message]
+      properties:
+        code:
+          type: string
+        message:
+          type: string
+        errors:
+          type: object
+          additionalProperties:
+            type: array
+            items:
+              type: string
+
+    SourceCitationContract:
+      type: object
+      required: [title, url, sourceType]
+      properties:
+        title:
+          type: string
+        url:
+          type: string
+          format: uri
+        sourceType:
+          type: string
+        snippet:
+          type: string
+          nullable: true
+
+    SkillTagContract:
+      type: object
+      required: [skillId, displayName]
+      properties:
+        skillId:
+          type: string
+        displayName:
+          type: string
+
+    UserPreferencesContract:
+      type: object
+      required:
+        - preferredLocale
+        - weeklyStudyHours
+        - allowPersonalizedRecommendations
+        - allowAnalyticsTracking
+      properties:
+        preferredLocale:
+          type: string
+        experienceLevel:
+          $ref: '#/components/schemas/ExperienceLevel'
+        weeklyStudyHours:
+          type: integer
+          minimum: 1
+        allowPersonalizedRecommendations:
+          type: boolean
+        allowAnalyticsTracking:
+          type: boolean
+
+    UserProfileContract:
+      type: object
+      required:
+        - userId
+        - externalIdentityId
+        - email
+        - displayName
+        - preferences
+        - hasActiveLearningPlan
+        - createdAtUtc
+        - updatedAtUtc
+      properties:
+        userId:
+          type: string
+          format: uuid
+        externalIdentityId:
+          type: string
+        email:
+          type: string
+          format: email
+        displayName:
+          type: string
+        avatarUrl:
+          type: string
+          format: uri
+          nullable: true
+        preferences:
+          $ref: '#/components/schemas/UserPreferencesContract'
+        hasActiveLearningPlan:
+          type: boolean
+        createdAtUtc:
+          type: string
+          format: date-time
+        updatedAtUtc:
+          type: string
+          format: date-time
+
+    GetCurrentUserResponse:
+      type: object
+      required: [user]
+      properties:
+        user:
+          $ref: '#/components/schemas/UserProfileContract'
+
+    UpdateUserProfileRequest:
+      type: object
+      required:
+        - displayName
+        - preferredLocale
+        - weeklyStudyHours
+        - allowPersonalizedRecommendations
+        - allowAnalyticsTracking
+      properties:
+        displayName:
+          type: string
+        avatarUrl:
+          type: string
+          format: uri
+          nullable: true
+        preferredLocale:
+          type: string
+        experienceLevel:
+          $ref: '#/components/schemas/ExperienceLevel'
+        weeklyStudyHours:
+          type: integer
+          minimum: 1
+        allowPersonalizedRecommendations:
+          type: boolean
+        allowAnalyticsTracking:
+          type: boolean
+
+    DeleteAccountRequest:
+      type: object
+      properties:
+        reason:
+          type: string
+          nullable: true
+        deletePersonalData:
+          type: boolean
+      required:
+        - deletePersonalData
+
+    DeleteAccountResponse:
+      type: object
+      required:
+        - userId
+        - requestStatus
+        - requestedAtUtc
+      properties:
+        userId:
+          type: string
+          format: uuid
+        requestStatus:
+          type: string
+        requestedAtUtc:
+          type: string
+          format: date-time
+
+    CareerTrackSummaryContract:
+      type: object
+      required:
+        - trackId
+        - displayName
+        - description
+        - coreSkills
+        - isFeatured
+      properties:
+        trackId:
+          type: string
+        displayName:
+          type: string
+        description:
+          type: string
+        coreSkills:
+          type: array
+          items:
+            $ref: '#/components/schemas/SkillTagContract'
+        isFeatured:
+          type: boolean
+
+    GetCareerTracksResponse:
+      type: object
+      required: [tracks]
+      properties:
+        tracks:
+          type: array
+          items:
+            $ref: '#/components/schemas/CareerTrackSummaryContract'
+
+    OnboardingSnapshotContract:
+      type: object
+      required:
+        - trackId
+        - experienceLevel
+        - preferredLocale
+        - weeklyStudyHours
+        - targetCompletionWeeks
+        - goalIds
+      properties:
+        trackId:
+          type: string
+        experienceLevel:
+          $ref: '#/components/schemas/ExperienceLevel'
+        preferredLocale:
+          type: string
+        weeklyStudyHours:
+          type: integer
+          minimum: 1
+        targetCompletionWeeks:
+          type: integer
+          minimum: 1
+        goalIds:
+          type: array
+          items:
+            type: string
+
+    OnboardingStatusResponse:
+      type: object
+      required: [isCompleted]
+      properties:
+        isCompleted:
+          type: boolean
+        activeLearningPlanId:
+          type: string
+          format: uuid
+          nullable: true
+        completedAtUtc:
+          type: string
+          format: date-time
+          nullable: true
+        snapshot:
+          allOf:
+            - $ref: '#/components/schemas/OnboardingSnapshotContract'
+          nullable: true
+
+    CompleteOnboardingRequest:
+      type: object
+      required:
+        - trackId
+        - experienceLevel
+        - preferredLocale
+        - weeklyStudyHours
+        - targetCompletionWeeks
+        - goalIds
+      properties:
+        trackId:
+          type: string
+        experienceLevel:
+          $ref: '#/components/schemas/ExperienceLevel'
+        preferredLocale:
+          type: string
+        weeklyStudyHours:
+          type: integer
+          minimum: 1
+        targetCompletionWeeks:
+          type: integer
+          minimum: 1
+        goalIds:
+          type: array
+          items:
+            type: string
+
+    CompleteOnboardingResponse:
+      type: object
+      required:
+        - userId
+        - learningPlanId
+        - generationStatus
+        - requestedAtUtc
+      properties:
+        userId:
+          type: string
+          format: uuid
+        learningPlanId:
+          type: string
+          format: uuid
+        generationStatus:
+          $ref: '#/components/schemas/PlanGenerationStatus'
+        requestedAtUtc:
+          type: string
+          format: date-time
+
+    LearningResourceContract:
+      type: object
+      required:
+        - resourceId
+        - title
+        - resourceType
+        - url
+        - provider
+        - isRequired
+      properties:
+        resourceId:
+          type: string
+        title:
+          type: string
+        resourceType:
+          $ref: '#/components/schemas/LearningResourceType'
+        url:
+          type: string
+          format: uri
+        provider:
+          type: string
+        isRequired:
+          type: boolean
+
+    LearningModuleContract:
+      type: object
+      required:
+        - moduleId
+        - order
+        - title
+        - description
+        - estimatedHours
+        - status
+        - skills
+        - resources
+      properties:
+        moduleId:
+          type: string
+          format: uuid
+        order:
+          type: integer
+          minimum: 1
+        title:
+          type: string
+        description:
+          type: string
+        estimatedHours:
+          type: integer
+          minimum: 1
+        status:
+          $ref: '#/components/schemas/LearningModuleStatus'
+        skills:
+          type: array
+          items:
+            $ref: '#/components/schemas/SkillTagContract'
+        resources:
+          type: array
+          items:
+            $ref: '#/components/schemas/LearningResourceContract'
+
+    LearningPlanContract:
+      type: object
+      required:
+        - learningPlanId
+        - userId
+        - trackId
+        - trackDisplayName
+        - experienceLevel
+        - preferredLocale
+        - status
+        - estimatedTotalHours
+        - weeklyStudyHours
+        - createdOn
+        - modules
+      properties:
+        learningPlanId:
+          type: string
+          format: uuid
+        userId:
+          type: string
+          format: uuid
+        trackId:
+          type: string
+        trackDisplayName:
+          type: string
+        experienceLevel:
+          $ref: '#/components/schemas/ExperienceLevel'
+        preferredLocale:
+          type: string
+        status:
+          $ref: '#/components/schemas/LearningPlanStatus'
+        estimatedTotalHours:
+          type: integer
+          minimum: 1
+        weeklyStudyHours:
+          type: integer
+          minimum: 1
+        createdOn:
+          type: string
+          format: date
+        targetCompletionDate:
+          type: string
+          format: date
+          nullable: true
+        modules:
+          type: array
+          items:
+            $ref: '#/components/schemas/LearningModuleContract'
+
+    GenerateLearningPlanRequest:
+      type: object
+      required:
+        - trackId
+        - experienceLevel
+        - preferredLocale
+        - weeklyStudyHours
+        - targetCompletionWeeks
+      properties:
+        trackId:
+          type: string
+        experienceLevel:
+          $ref: '#/components/schemas/ExperienceLevel'
+        preferredLocale:
+          type: string
+        weeklyStudyHours:
+          type: integer
+          minimum: 1
+        targetCompletionWeeks:
+          type: integer
+          minimum: 1
+        forceRegeneration:
+          type: boolean
+          default: false
+
+    GenerateLearningPlanResponse:
+      type: object
+      required:
+        - learningPlanId
+        - status
+        - requestedAtUtc
+      properties:
+        learningPlanId:
+          type: string
+          format: uuid
+        status:
+          $ref: '#/components/schemas/PlanGenerationStatus'
+        requestedAtUtc:
+          type: string
+          format: date-time
+
+    GetLearningPlanResponse:
+      type: object
+      required: [plan]
+      properties:
+        plan:
+          $ref: '#/components/schemas/LearningPlanContract'
+
+    RegenerateLearningPlanRequest:
+      type: object
+      properties:
+        weeklyStudyHours:
+          type: integer
+          minimum: 1
+          nullable: true
+        targetCompletionWeeks:
+          type: integer
+          minimum: 1
+          nullable: true
+        reason:
+          type: string
+          nullable: true
+
+    RegenerateLearningPlanResponse:
+      type: object
+      required:
+        - learningPlanId
+        - status
+        - requestedAtUtc
+      properties:
+        learningPlanId:
+          type: string
+          format: uuid
+        status:
+          $ref: '#/components/schemas/PlanGenerationStatus'
+        requestedAtUtc:
+          type: string
+          format: date-time
+
+    LearningAssistantMessageContract:
+      type: object
+      required:
+        - messageId
+        - role
+        - content
+        - createdAtUtc
+        - citations
+      properties:
+        messageId:
+          type: string
+          format: uuid
+        role:
+          $ref: '#/components/schemas/AssistantMessageRole'
+        content:
+          type: string
+        createdAtUtc:
+          type: string
+          format: date-time
+        citations:
+          type: array
+          items:
+            $ref: '#/components/schemas/SourceCitationContract'
+
+    StartLearningAssistantSessionRequest:
+      type: object
+      properties:
+        learningPlanId:
+          type: string
+          format: uuid
+          nullable: true
+        trackId:
+          type: string
+          nullable: true
+
+    StartLearningAssistantSessionResponse:
+      type: object
+      required:
+        - sessionId
+        - createdAtUtc
+      properties:
+        sessionId:
+          type: string
+          format: uuid
+        createdAtUtc:
+          type: string
+          format: date-time
+
+    AskLearningAssistantRequest:
+      type: object
+      required: [question]
+      properties:
+        sessionId:
+          type: string
+          format: uuid
+          nullable: true
+        learningPlanId:
+          type: string
+          format: uuid
+          nullable: true
+        trackId:
+          type: string
+          nullable: true
+        question:
+          type: string
+          minLength: 1
+
+    AskLearningAssistantResponse:
+      type: object
+      required:
+        - sessionId
+        - answer
+        - usedFallbackResponse
+      properties:
+        sessionId:
+          type: string
+          format: uuid
+        answer:
+          $ref: '#/components/schemas/LearningAssistantMessageContract'
+        usedFallbackResponse:
+          type: boolean
+
+    ModuleProgressContract:
+      type: object
+      required:
+        - learningPlanId
+        - moduleId
+        - status
+        - totalMinutesSpent
+        - updatedAtUtc
+      properties:
+        learningPlanId:
+          type: string
+          format: uuid
+        moduleId:
+          type: string
+          format: uuid
+        status:
+          $ref: '#/components/schemas/LearningModuleStatus'
+        totalMinutesSpent:
+          type: integer
+          minimum: 0
+        startedAtUtc:
+          type: string
+          format: date-time
+          nullable: true
+        completedAtUtc:
+          type: string
+          format: date-time
+          nullable: true
+        updatedAtUtc:
+          type: string
+          format: date-time
+
+    UpdateModuleProgressRequest:
+      type: object
+      required:
+        - status
+        - minutesSpentDelta
+        - occurredAtUtc
+      properties:
+        status:
+          $ref: '#/components/schemas/LearningModuleStatus'
+        minutesSpentDelta:
+          type: integer
+          minimum: 0
+        occurredAtUtc:
+          type: string
+          format: date-time
+
+    UpdateModuleProgressResponse:
+      type: object
+      required: [progress]
+      properties:
+        progress:
+          $ref: '#/components/schemas/ModuleProgressContract'
+
+    LearningActivityContract:
+      type: object
+      required:
+        - activityId
+        - learningPlanId
+        - moduleId
+        - minutesSpent
+        - activityDate
+        - loggedAtUtc
+      properties:
+        activityId:
+          type: string
+          format: uuid
+        learningPlanId:
+          type: string
+          format: uuid
+        moduleId:
+          type: string
+          format: uuid
+        minutesSpent:
+          type: integer
+          minimum: 1
+        activityDate:
+          type: string
+          format: date
+        loggedAtUtc:
+          type: string
+          format: date-time
+
+    LogLearningActivityRequest:
+      type: object
+      required:
+        - moduleId
+        - minutesSpent
+        - activityDate
+      properties:
+        moduleId:
+          type: string
+          format: uuid
+        minutesSpent:
+          type: integer
+          minimum: 1
+        activityDate:
+          type: string
+          format: date
+
+    LogLearningActivityResponse:
+      type: object
+      required: [activity]
+      properties:
+        activity:
+          $ref: '#/components/schemas/LearningActivityContract'
+
+    WeeklyActivityPointContract:
+      type: object
+      required:
+        - weekStartDate
+        - minutesSpent
+        - modulesCompleted
+      properties:
+        weekStartDate:
+          type: string
+          format: date
+        minutesSpent:
+          type: integer
+          minimum: 0
+        modulesCompleted:
+          type: integer
+          minimum: 0
+
+    SkillProgressContract:
+      type: object
+      required:
+        - skillId
+        - displayName
+        - completedModules
+        - totalModules
+      properties:
+        skillId:
+          type: string
+        displayName:
+          type: string
+        completedModules:
+          type: integer
+          minimum: 0
+        totalModules:
+          type: integer
+          minimum: 0
+
+    DashboardSummaryContract:
+      type: object
+      required:
+        - range
+        - totalModules
+        - completedModules
+        - inProgressModules
+        - totalLearningMinutes
+        - completionRate
+        - weeklyActivity
+        - skills
+      properties:
+        range:
+          $ref: '#/components/schemas/DateRange'
+        totalModules:
+          type: integer
+          minimum: 0
+        completedModules:
+          type: integer
+          minimum: 0
+        inProgressModules:
+          type: integer
+          minimum: 0
+        totalLearningMinutes:
+          type: integer
+          minimum: 0
+        completionRate:
+          type: number
+          format: double
+          minimum: 0
+          maximum: 1
+        weeklyActivity:
+          type: array
+          items:
+            $ref: '#/components/schemas/WeeklyActivityPointContract'
+        skills:
+          type: array
+          items:
+            $ref: '#/components/schemas/SkillProgressContract'
+
+    GetDashboardSummaryResponse:
+      type: object
+      required: [summary]
+      properties:
+        summary:
+          $ref: '#/components/schemas/DashboardSummaryContract'

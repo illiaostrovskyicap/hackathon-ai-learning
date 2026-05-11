@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="PathfinderAPI/PathfinderAPI.csproj" />
+  <Project Path="PathfinderAI.Contracts/PathfinderAI.Contracts.csproj" />
+</Solution>
