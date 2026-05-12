@@ -1,4 +1,6 @@
+using BCrypt.Net;
 using Microsoft.AspNetCore.Mvc;
+using Npgsql;
 
 namespace PathfinderAPI.Controllers;
 
@@ -6,62 +8,135 @@ namespace PathfinderAPI.Controllers;
 [Route("api/auth")]
 public class AuthController : ControllerBase
 {
+    private readonly IConfiguration _configuration;
+
+    public AuthController(IConfiguration configuration)
+    {
+        _configuration = configuration;
+    }
+
     [HttpPost("login")]
-    public IActionResult Login([FromBody] LoginRequest request)
+    public async Task<IActionResult> Login([FromBody] LoginRequest request)
     {
         if (string.IsNullOrWhiteSpace(request.Email))
-        {
             return BadRequest(new { message = "Email is required" });
-        }
 
         if (string.IsNullOrWhiteSpace(request.Password))
-        {
             return BadRequest(new { message = "Password is required" });
+
+        var connectionString = _configuration.GetConnectionString("DefaultConnection");
+
+        if (string.IsNullOrWhiteSpace(connectionString))
+            return StatusCode(500, new { message = "Database connection string is missing" });
+
+        await using var connection = new NpgsqlConnection(connectionString);
+        await connection.OpenAsync();
+
+        await EnsureUsersTable(connection);
+
+        var normalizedEmail = request.Email.Trim().ToLowerInvariant();
+
+        await using var findCommand = new NpgsqlCommand(
+            """
+            SELECT id, email, name, password_hash, role, has_completed_onboarding, created_at
+            FROM users
+            WHERE email = @email
+            """,
+            connection
+        );
+
+        findCommand.Parameters.AddWithValue("email", normalizedEmail);
+
+        await using var reader = await findCommand.ExecuteReaderAsync();
+
+        if (await reader.ReadAsync())
+        {
+            var userId = reader.GetGuid(0);
+            var email = reader.GetString(1);
+            var name = reader.GetString(2);
+            var passwordHash = reader.GetString(3);
+            var role = reader.GetString(4);
+            var hasCompletedOnboarding = reader.GetBoolean(5);
+            var createdAt = reader.GetDateTime(6);
+
+            if (!BCrypt.Net.BCrypt.Verify(request.Password, passwordHash))
+            {
+                return Unauthorized(new { message = "Invalid email or password" });
+            }
+
+            return Ok(new LoginResponse
+            {
+                Token = "demo-token-" + userId,
+                User = new UserResponse
+                {
+                    Id = userId,
+                    Email = email,
+                    Name = name,
+                    Role = role,
+                    HasCompletedOnboarding = hasCompletedOnboarding,
+                    CreatedAt = createdAt
+                }
+            });
         }
 
-        var isEditor =
-            request.Email.Contains("editor", StringComparison.OrdinalIgnoreCase) ||
-            request.Email.Contains("admin", StringComparison.OrdinalIgnoreCase);
+        await reader.CloseAsync();
 
-        var user = new DemoUserResponse
-        {
-            Id = "user-" + Math.Abs(request.Email.GetHashCode()),
-            Name = request.Email.Split("@")[0],
-            Email = request.Email,
-            Role = isEditor ? "editor" : "user",
-            HasCompletedOnboarding = false,
-            CreatedAt = DateTimeOffset.UtcNow,
-            Preferences = new UserPreferences
-            {
-                Notifications = true,
-                EmailUpdates = true
-            }
-        };
+        var newUserId = Guid.NewGuid();
+        var newName = normalizedEmail.Split("@")[0];
+        var newPasswordHash = BCrypt.Net.BCrypt.HashPassword(request.Password);
+        var newRole = normalizedEmail.Contains("admin") || normalizedEmail.Contains("editor")
+            ? "editor"
+            : "user";
 
-        var token = "demo-token-" + user.Id;
+        await using var insertCommand = new NpgsqlCommand(
+            """
+            INSERT INTO users (id, email, name, password_hash, role, has_completed_onboarding, created_at)
+            VALUES (@id, @email, @name, @passwordHash, @role, false, NOW())
+            """,
+            connection
+        );
+
+        insertCommand.Parameters.AddWithValue("id", newUserId);
+        insertCommand.Parameters.AddWithValue("email", normalizedEmail);
+        insertCommand.Parameters.AddWithValue("name", newName);
+        insertCommand.Parameters.AddWithValue("passwordHash", newPasswordHash);
+        insertCommand.Parameters.AddWithValue("role", newRole);
+
+        await insertCommand.ExecuteNonQueryAsync();
 
         return Ok(new LoginResponse
         {
-            Token = token,
-            User = user
+            Token = "demo-token-" + newUserId,
+            User = new UserResponse
+            {
+                Id = newUserId,
+                Email = normalizedEmail,
+                Name = newName,
+                Role = newRole,
+                HasCompletedOnboarding = false,
+                CreatedAt = DateTime.UtcNow
+            }
         });
     }
 
-    [HttpGet("me")]
-    public IActionResult Me()
+    private static async Task EnsureUsersTable(NpgsqlConnection connection)
     {
-        var authHeader = Request.Headers.Authorization.ToString();
+        await using var command = new NpgsqlCommand(
+            """
+            CREATE TABLE IF NOT EXISTS users (
+                id UUID PRIMARY KEY,
+                email TEXT NOT NULL UNIQUE,
+                name TEXT NOT NULL,
+                password_hash TEXT NOT NULL,
+                role TEXT NOT NULL DEFAULT 'user',
+                has_completed_onboarding BOOLEAN NOT NULL DEFAULT false,
+                created_at TIMESTAMP NOT NULL DEFAULT NOW()
+            );
+            """,
+            connection
+        );
 
-        if (string.IsNullOrWhiteSpace(authHeader) || !authHeader.StartsWith("Bearer "))
-        {
-            return Unauthorized(new { message = "Missing token" });
-        }
-
-        return Ok(new
-        {
-            message = "Token accepted",
-            token = authHeader.Replace("Bearer ", "")
-        });
+        await command.ExecuteNonQueryAsync();
     }
 }
 
@@ -74,22 +149,15 @@ public class LoginRequest
 public class LoginResponse
 {
     public string Token { get; set; } = "";
-    public DemoUserResponse User { get; set; } = new();
+    public UserResponse User { get; set; } = new();
 }
 
-public class DemoUserResponse
+public class UserResponse
 {
-    public string Id { get; set; } = "";
-    public string Name { get; set; } = "";
+    public Guid Id { get; set; }
     public string Email { get; set; } = "";
+    public string Name { get; set; } = "";
     public string Role { get; set; } = "user";
     public bool HasCompletedOnboarding { get; set; }
-    public DateTimeOffset CreatedAt { get; set; }
-    public UserPreferences Preferences { get; set; } = new();
-}
-
-public class UserPreferences
-{
-    public bool Notifications { get; set; }
-    public bool EmailUpdates { get; set; }
+    public DateTime CreatedAt { get; set; }
 }
