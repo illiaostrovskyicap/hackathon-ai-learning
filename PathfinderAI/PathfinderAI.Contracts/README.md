@@ -34,4 +34,5 @@ Contracts-only library for the PathfinderAI MVP backend.
 - `POST /api/assistant/messages`
 - `PATCH /api/learning-plans/{learningPlanId}/modules/{moduleId}`
 - `POST /api/progress/activities`
+- `POST /api/auth/login`
 - `GET /api/dashboard/summary`

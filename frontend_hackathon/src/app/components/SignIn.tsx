@@ -9,11 +9,17 @@ export function SignIn() {
   const { signIn } = useApp();
   const navigate = useNavigate();
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    signIn(email, password);
-    navigate("/onboarding");
-  };
+
+    try {
+      await signIn(email, password);
+      navigate("/onboarding");
+    } catch (error) {
+      alert("Login failed. Check backend connection.");
+      console.error(error);
+    }
+  } ;
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-indigo-50 via-white to-purple-50">

@@ -1,4 +1,5 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
+import { login } from "../api"
 
 export interface User {
   id: string;
@@ -112,7 +113,7 @@ export interface ContentItem {
 
 interface AppContextType {
   user: User | null;
-  signIn: (email: string, password: string) => void;
+  signIn: (email: string, password: string) => Promise<void>;
   signOut: () => void;
   updateProfile: (updates: Partial<User>) => void;
   deleteAccount: () => void;
@@ -172,29 +173,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
     if (savedContent) setContentLibrary(JSON.parse(savedContent));
   }, []);
 
-  const signIn = (email: string, password: string) => {
-    const isEditor = email.includes("editor") || email.includes("admin");
-    const newUser: User = {
-      id: "user-" + Date.now(),
-      name: email.split("@")[0],
-      email,
-      hasCompletedOnboarding: false,
-      role: isEditor ? "editor" : "user",
-      createdAt: new Date().toISOString(),
-      preferences: {
-        notifications: true,
-        emailUpdates: true,
-      },
-    };
-    setUser(newUser);
-    localStorage.setItem("user", JSON.stringify(newUser));
+  const signIn = async (email: string, password: string) => {
+    const result = await login(email, password);
 
-    if (isEditor) {
-      setContentLibrary(generateInitialContent());
-      localStorage.setItem("contentLibrary", JSON.stringify(generateInitialContent()));
+    setUser(result.user);
+    localStorage.setItem("user", JSON.stringify(result.user));
+    localStorage.setItem("authToken", result.token);
+
+    if (result.user.role === "editor" || result.user.role === "admin") {
+      const initialContent = generateInitialContent();
+      setContentLibrary(initialContent);
+      localStorage.setItem("contentLibrary", JSON.stringify(initialContent));
     }
   };
-
   const updateProfile = (updates: Partial<User>) => {
     if (!user) return;
     const updatedUser = { ...user, ...updates };
