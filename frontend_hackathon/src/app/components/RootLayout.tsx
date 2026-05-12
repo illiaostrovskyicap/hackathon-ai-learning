@@ -37,6 +37,11 @@ export function RootLayout() {
                   <NavLink to="/" icon={<Home className="h-5 w-5" />} label="Dashboard" />
                   <NavLink to="/roadmap" icon={<BookOpen className="h-5 w-5" />} label="Roadmap" />
                   <NavLink
+                    to="/profile"
+                    icon={<User className="h-5 w-5" />}
+                    label="Profile"
+                  />
+                  <NavLink
                     to="/interview"
                     icon={<MessageSquare className="h-5 w-5" />}
                     label="Interview"

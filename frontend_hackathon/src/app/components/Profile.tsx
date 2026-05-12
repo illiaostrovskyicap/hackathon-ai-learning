@@ -10,8 +10,8 @@ export function Profile() {
   const [formData, setFormData] = useState({
     name: user?.name || "",
     preferences: {
-      notifications: user?.preferences.notifications || false,
-      emailUpdates: user?.preferences.emailUpdates || false,
+      notifications: user?.preferences?.notifications ?? false,
+      emailUpdates: user?.preferences?.emailUpdates ?? false,
     },
   });
 
