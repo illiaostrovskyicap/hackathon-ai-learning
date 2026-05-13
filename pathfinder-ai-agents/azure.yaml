@@ -1,0 +1,9 @@
+name: pathfinder-ai-agents
+metadata:
+  template: pathfinder-ai-agents@0.1.0
+services:
+  agent-api:
+    project: .
+    language: python
+    host: appservice
+    startupCommand: gunicorn -w 2 -k uvicorn.workers.UvicornWorker -b 0.0.0.0:8000 pathfinder_ai_agents.main:app
