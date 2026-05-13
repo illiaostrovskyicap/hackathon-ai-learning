@@ -28,17 +28,16 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
+      - name: Prepare agents artifact
+        run: |
+          mkdir deploy
+          cp -R pathfinder-ai-agents/. deploy/
+
       - name: Upload agents artifact
         uses: actions/upload-artifact@v4
         with:
-          name: python-app
-          path: |
-            pathfinder-ai-agents/**
-            !pathfinder-ai-agents/.venv/
-            !pathfinder-ai-agents/.env
-            !pathfinder-ai-agents/__pycache__/
-            !pathfinder-ai-agents/.pytest_cache/
-            !pathfinder-ai-agents/.ruff_cache/
+        name: python-app
+        path: deploy
 
   deploy:
     runs-on: ubuntu-latest
@@ -66,4 +65,4 @@ jobs:
         with:
           app-name: 'pathfinder-agents'
           slot-name: 'Production'
-          package: pathfinder-ai-agents
+          package: .
