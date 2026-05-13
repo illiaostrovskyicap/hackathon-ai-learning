@@ -33,7 +33,7 @@ jobs:
         with:
           name: python-app
           path: |
-            pathfinder-ai-agents
+            pathfinder-ai-agents/**
             !pathfinder-ai-agents/.venv/
             !pathfinder-ai-agents/.env
             !pathfinder-ai-agents/__pycache__/
