@@ -13,8 +13,13 @@ export function SignIn() {
     e.preventDefault();
 
     try {
-      await signIn(email, password);
-      navigate("/onboarding");
+      const signedInUser = await signIn(email, password);
+
+      if(signedInUser.hasCompletedOnboarding){
+        navigate("/roadmap");
+      } else {
+        navigate("/onboarding");
+      }      
     } catch (error) {
       alert("Login failed. Check backend connection.");
       console.error(error);

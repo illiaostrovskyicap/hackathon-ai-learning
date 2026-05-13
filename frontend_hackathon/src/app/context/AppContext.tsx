@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
-import { login } from "../api"
+import { login } from "../api";
+import { generateLearningPlan, getActiveLearningPlan } from "../api";
 
 export interface User {
   id: string;
@@ -117,7 +118,7 @@ interface AppContextType {
   signOut: () => void;
   updateProfile: (updates: Partial<User>) => void;
   deleteAccount: () => void;
-  completeOnboarding: (track: string, experience: string, language: string) => void;
+  completeOnboarding: (track: string, experience: string, language: string) => Promise<void>;
   learningPlan: LearningPlan | null;
   updateModuleStatus: (moduleId: string, status: Module["status"]) => void;
   submitAssessment: (moduleId: string, answers: number[]) => void;
@@ -173,18 +174,39 @@ export function AppProvider({ children }: { children: ReactNode }) {
     if (savedContent) setContentLibrary(JSON.parse(savedContent));
   }, []);
 
-  const signIn = async (email: string, password: string) => {
+  const signIn = async (email: string, password: string): Promise<User> => {
     const result = await login(email, password);
 
-    setUser(result.user);
-    localStorage.setItem("user", JSON.stringify(result.user));
+    let signedInUser: User = {
+      ...result.user,
+      preferences: result.user.preferences ?? {
+        notifications: true,
+        emailUpdates: true,
+      },
+    };
+
     localStorage.setItem("authToken", result.token);
 
-    if (result.user.role === "editor" || result.user.role === "admin") {
-      const initialContent = generateInitialContent();
-      setContentLibrary(initialContent);
-      localStorage.setItem("contentLibrary", JSON.stringify(initialContent));
+    try {
+      const activePlan = await getActiveLearningPlan(signedInUser.id);
+
+      if (activePlan) {
+        signedInUser = {
+          ...signedInUser,
+          hasCompletedOnboarding: true,
+        };
+
+        setLearningPlan(activePlan);
+        localStorage.setItem("learningPlan", JSON.stringify(activePlan));
+      }
+    } catch {
+      // no saved plan
     }
+
+    setUser(signedInUser);
+    localStorage.setItem("user", JSON.stringify(signedInUser));
+
+    return signedInUser;
   };
   const updateProfile = (updates: Partial<User>) => {
     if (!user) return;
@@ -215,23 +237,27 @@ export function AppProvider({ children }: { children: ReactNode }) {
     localStorage.removeItem("interviewSessions");
   };
 
-  const completeOnboarding = (track: string, experience: string, language: string) => {
-    const plan: LearningPlan = {
-      id: "plan-1",
+  const completeOnboarding = async (track: string, experience: string, language: string) => {
+    if (!user) return;
+
+    const plan = await generateLearningPlan({
+      userId: user.id,
       track,
       experience,
       language,
-      generatedAt: new Date().toISOString(),
-      modules: generateModules(track, experience),
-    };
+    });
 
-    const updatedUser = { ...user!, hasCompletedOnboarding: true };
+    const updatedUser = { ...user, hasCompletedOnboarding: true };
+
     setUser(updatedUser);
     setLearningPlan(plan);
+
     localStorage.setItem("user", JSON.stringify(updatedUser));
     localStorage.setItem("learningPlan", JSON.stringify(plan));
+
     updateAnalytics(plan);
   };
+
 
   const updateModuleStatus = (moduleId: string, status: Module["status"]) => {
     if (!learningPlan) return;

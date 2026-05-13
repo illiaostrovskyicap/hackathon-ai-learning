@@ -36,10 +36,16 @@ export function Onboarding() {
 
   const handleComplete = async () => {
     setGenerating(true);
-    setTimeout(() => {
-      completeOnboarding(track, experience, language);
+
+    try {
+      await completeOnboarding(track, experience, language);
       navigate("/roadmap");
-    }, 2000);
+    } catch (error) {
+      console.error(error);
+      alert("Failed to generate roadmap. Check backend/agents connection.");
+    } finally {
+      setGenerating(false);
+    }
   };
 
   return (

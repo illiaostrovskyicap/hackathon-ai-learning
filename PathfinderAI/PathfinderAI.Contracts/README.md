@@ -30,6 +30,7 @@ Contracts-only library for the PathfinderAI MVP backend.
 - `POST /api/learning-plans`
 - `GET /api/learning-plans/active`
 - `POST /api/learning-plans/{learningPlanId}/regenerate`
+- `POST /api/learning-plans/generate-roadmap`
 - `POST /api/assistant/sessions`
 - `POST /api/assistant/messages`
 - `PATCH /api/learning-plans/{learningPlanId}/modules/{moduleId}`

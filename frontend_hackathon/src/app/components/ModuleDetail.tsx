@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useParams, useNavigate } from "react-router";
 import { useApp } from "../context/AppContext";
-import { ArrowLeft, BookOpen, Video, FileText, CheckCircle2, PlayCircle } from "lucide-react";
+import { ArrowLeft, BookOpen, Video, FileText, CheckCircle2, PlayCircle, ExternalLink } from "lucide-react";
 
 export function ModuleDetail() {
   const { moduleId } = useParams();
@@ -137,16 +137,28 @@ export function ModuleDetail() {
           <h2 className="text-xl font-semibold text-gray-900 mb-4">Learning Resources</h2>
           <div className="space-y-3">
             {module.resources.map((resource) => (
-              <div
+              <a
                 key={resource.id}
-                className="flex items-center space-x-3 p-4 border border-gray-200 rounded-lg hover:bg-gray-50"
+                href={resource.url && resource.url !== "#" ? resource.url : undefined}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center space-x-4 rounded-xl border border-gray-200 p-4 transition hover:border-indigo-300 hover:bg-indigo-50 hover:shadow-sm"
               >
-                <div className="text-indigo-600">{resourceIcons[resource.type]}</div>
-                <div className="flex-1">
-                  <div className="font-medium text-gray-900">{resource.title}</div>
-                  <div className="text-sm text-gray-600 capitalize">{resource.type}</div>
+                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-indigo-100 text-indigo-600">
+                  {resource.type === "video" ? (
+                    <Video className="h-5 w-5" />
+                  ) : (
+                    <FileText className="h-5 w-5" />
+                  )}
                 </div>
-              </div>
+
+                <div className="flex-1">
+                  <h3 className="font-semibold text-gray-900">{resource.title}</h3>
+                  <p className="text-sm capitalize text-gray-500">{resource.type}</p>
+                </div>
+
+                <ExternalLink className="h-5 w-5 text-gray-400" />
+              </a>
             ))}
           </div>
         </div>

@@ -1,6 +1,31 @@
 const API_BASE_URL =
   import.meta.env.VITE_API_BASE_URL || "http://localhost:5136";
 
+function normalizeLearningPlan(data: any) {
+  return {
+    id: data.id ?? data.Id,
+    track: data.track ?? data.Track,
+    experience: data.experience ?? data.Experience,
+    language: data.language ?? data.Language,
+    generatedAt: data.generatedAt ?? data.GeneratedAt,
+
+    modules: (data.modules ?? data.Modules ?? []).map((m: any) => ({
+      id: m.id ?? m.Id,
+      title: m.title ?? m.Title,
+      description: m.description ?? m.Description,
+      status: m.status ?? m.Status ?? "not-started",
+      estimatedHours: m.estimatedHours ?? m.EstimatedHours ?? 8,
+      topics: m.topics ?? m.Topics ?? [],
+      resources: (m.resources ?? m.Resources ?? []).map((r: any) => ({
+        id: r.id ?? r.Id,
+        title: r.title ?? r.Title,
+        type: r.type ?? r.Type,
+        url: r.url ?? r.Url,
+      })),
+    })),
+  };
+}
+
 export async function login(email: string, password: string) {
   const response = await fetch(`${API_BASE_URL}/api/auth/login`, {
     method: "POST",
@@ -29,4 +54,51 @@ export async function getMe(token: string) {
   }
 
   return response.json();
+}
+
+export async function generateLearningPlan(payload: {
+  userId?: string;
+  track: string;
+  experience: string;
+  language: string;
+}) {
+  const response = await fetch(`${API_BASE_URL}/api/learning-plans/generate-roadmap`, {
+  method: "POST",
+  headers: {
+    "Content-Type": "application/json",
+  Authorization: `Bearer ${localStorage.getItem("authToken") || ""}`,
+  },
+  body: JSON.stringify(payload),
+});
+
+  if (!response.ok) {
+  const details = await response.text();
+  throw new Error(`Failed to generate roadmap: ${response.status} ${details}`);
+  }
+
+  const data = await response.json();
+  return normalizeLearningPlan(data);
+}
+
+export async function getActiveLearningPlan(userId: string) {
+  const response = await fetch(
+    `${API_BASE_URL}/api/learning-plans/active?userId=${encodeURIComponent(userId)}`,
+    {
+      headers: {
+        Authorization: `Bearer ${localStorage.getItem("authToken") || ""}`,
+      },
+    }
+  );
+
+  if (response.status === 404) {
+    return null;
+  }
+
+  if (!response.ok) {
+    const details = await response.text();
+    throw new Error(`Failed to load active learning plan: ${response.status} ${details}`);
+  }
+
+  const data = await response.json();
+  return normalizeLearningPlan(data);
 }
