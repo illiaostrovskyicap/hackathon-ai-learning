@@ -918,6 +918,7 @@ public class ModuleResponse
     public List<ResourceResponse> Resources { get; set; } = new();
     public List<SubModuleResponse> SubModules { get; set; } = new();
     public AssessmentResponse? Assessment { get; set; }
+    public string ResourceQuery { get; set; } = "";
 }
 
 public class SubModuleResponse

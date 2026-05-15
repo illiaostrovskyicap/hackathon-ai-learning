@@ -94,22 +94,13 @@ public class InterviewsController : ControllerBase
 
             context = new
             {
-                task_type = "interview_session",
-                max_questions = 2,
-                previous_questions = previousQuestions,
                 track_id = request.Track,
                 preferred_locale = "en-US",
                 experience_level = MapExperience(request.Experience),
-
                 weekly_study_hours = 6,
-
-                interview_type = request.InterviewType,
-                history = request.History,
-                response_count = responseCount,
-
                 current_goal = "Practice interview skills",
                 completed_skills = Array.Empty<string>(),
-                skills_to_improve = Array.Empty<string>(),
+                weak_skills = Array.Empty<string>(),
                 completed_modules = 0,
                 in_progress_modules = 0,
                 remaining_modules = 0,

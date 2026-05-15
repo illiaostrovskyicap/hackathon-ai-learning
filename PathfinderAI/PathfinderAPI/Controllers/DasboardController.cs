@@ -8,6 +8,7 @@ using System.Text.Json.Serialization;
 namespace PathfinderAPI.Controllers;
 
 [ApiController]
+[Route("api/dashboard")]
 public class DashboardController : ControllerBase
 {
     private readonly IConfiguration _configuration;
@@ -24,7 +25,7 @@ public class DashboardController : ControllerBase
             ?? throw new InvalidOperationException("DefaultConnection is missing");
     }
 
-    [HttpGet("api/dashboard/{userId}")]
+    [HttpGet("{userId}")]
     public async Task<IActionResult> GetDashboard(string userId)
     {
         if (!Guid.TryParse(userId, out var parsedUserId))
@@ -34,6 +35,10 @@ public class DashboardController : ControllerBase
 
         await using var db = new NpgsqlConnection(GetConnectionString());
         await db.OpenAsync();
+
+        await EnsureLearningPlansTable(db);
+        await EnsureModuleAssessmentsTable(db);
+        await EnsureInterviewSessionsTable(db);
 
         var modules = new List<DashboardModule>();
         var learningPlanId = "";
@@ -250,6 +255,73 @@ public class DashboardController : ControllerBase
             interviewScoreTrend,
             plannedVsActual
         });
+    }
+
+    private static async Task EnsureLearningPlansTable(NpgsqlConnection connection)
+    {
+        await using var command = new NpgsqlCommand(
+            """
+            CREATE TABLE IF NOT EXISTS learning_plans (
+                id TEXT PRIMARY KEY,
+                user_id UUID NOT NULL,
+                track TEXT NOT NULL,
+                experience TEXT NOT NULL,
+                language TEXT NOT NULL,
+                plan_json JSONB NOT NULL,
+                created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+                updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+            );
+            """,
+            connection);
+
+        await command.ExecuteNonQueryAsync();
+    }
+
+    private static async Task EnsureModuleAssessmentsTable(NpgsqlConnection connection)
+    {
+        await using var command = new NpgsqlCommand(
+            """
+            CREATE TABLE IF NOT EXISTS module_assessments (
+                id TEXT PRIMARY KEY,
+                user_id UUID NOT NULL,
+                learning_plan_id TEXT NOT NULL,
+                module_id TEXT NOT NULL,
+                module_title TEXT NOT NULL,
+                score INTEGER NOT NULL,
+                passed BOOLEAN NOT NULL DEFAULT false,
+                completed_at TIMESTAMP,
+                created_at TIMESTAMP NOT NULL DEFAULT NOW()
+            );
+            """,
+            connection);
+
+        await command.ExecuteNonQueryAsync();
+    }
+
+    private static async Task EnsureInterviewSessionsTable(NpgsqlConnection connection)
+    {
+        await using var command = new NpgsqlCommand(
+            """
+            CREATE TABLE IF NOT EXISTS interview_sessions (
+                id TEXT PRIMARY KEY,
+                user_id UUID NOT NULL,
+                interview_type TEXT NOT NULL,
+                track TEXT NOT NULL,
+                experience TEXT NOT NULL,
+                status TEXT NOT NULL DEFAULT 'in-progress',
+                messages_json JSONB NOT NULL,
+                score INTEGER,
+                strengths_json JSONB,
+                improvements_json JSONB,
+                question_scores_json JSONB,
+                created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+                updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
+                completed_at TIMESTAMP
+            );
+            """,
+            connection);
+
+        await command.ExecuteNonQueryAsync();
     }
 }
 

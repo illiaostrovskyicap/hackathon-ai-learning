@@ -1,10 +1,8 @@
-info: Microsoft.Hosting.Lifetime[14]
-      Now listening on: http://127.0.0.1:5136
-info: Microsoft.Hosting.Lifetime[0]
-      Application started. Press Ctrl+C to shut down.
-info: Microsoft.Hosting.Lifetime[0]
-      Hosting environment: Production
-info: Microsoft.Hosting.Lifetime[0]
-      Content root path: /Users/dkap/hackathon-ai-learning/PathfinderAI/PathfinderAPI
-warn: Microsoft.AspNetCore.HttpsPolicy.HttpsRedirectionMiddleware[3]
-      Failed to determine the https port for redirect.
+/Users/dkap/hackathon-ai-learning/PathfinderAI/PathfinderAPI/Controllers/ProgressController.cs(315,13): error CS0117: 'ModuleResponse' does not contain a definition for 'ResourceQuery' [/Users/dkap/hackathon-ai-learning/PathfinderAI/PathfinderAPI/PathfinderAPI.csproj]
+/Users/dkap/hackathon-ai-learning/PathfinderAI/PathfinderAPI/Controllers/RoadmapGenerationController.cs(296,21): error CS0117: 'ModuleResponse' does not contain a definition for 'ResourceQuery' [/Users/dkap/hackathon-ai-learning/PathfinderAI/PathfinderAPI/PathfinderAPI.csproj]
+/Users/dkap/hackathon-ai-learning/PathfinderAI/PathfinderAPI/Controllers/ProgressController.cs(423,20): error CS1061: 'ModuleResponse' does not contain a definition for 'ResourceQuery' and no accessible extension method 'ResourceQuery' accepting a first argument of type 'ModuleResponse' could be found (are you missing a using directive or an assembly reference?) [/Users/dkap/hackathon-ai-learning/PathfinderAI/PathfinderAPI/PathfinderAPI.csproj]
+/Users/dkap/hackathon-ai-learning/PathfinderAI/PathfinderAPI/Controllers/ProgressController.cs(424,46): error CS1061: 'ModuleResponse' does not contain a definition for 'ResourceQuery' and no accessible extension method 'ResourceQuery' accepting a first argument of type 'ModuleResponse' could be found (are you missing a using directive or an assembly reference?) [/Users/dkap/hackathon-ai-learning/PathfinderAI/PathfinderAPI/PathfinderAPI.csproj]
+/Users/dkap/hackathon-ai-learning/PathfinderAI/PathfinderAPI/Controllers/RoadmapGenerationController.cs(695,20): error CS1061: 'ModuleResponse' does not contain a definition for 'ResourceQuery' and no accessible extension method 'ResourceQuery' accepting a first argument of type 'ModuleResponse' could be found (are you missing a using directive or an assembly reference?) [/Users/dkap/hackathon-ai-learning/PathfinderAI/PathfinderAPI/PathfinderAPI.csproj]
+/Users/dkap/hackathon-ai-learning/PathfinderAI/PathfinderAPI/Controllers/RoadmapGenerationController.cs(696,46): error CS1061: 'ModuleResponse' does not contain a definition for 'ResourceQuery' and no accessible extension method 'ResourceQuery' accepting a first argument of type 'ModuleResponse' could be found (are you missing a using directive or an assembly reference?) [/Users/dkap/hackathon-ai-learning/PathfinderAI/PathfinderAPI/PathfinderAPI.csproj]
+
+The build failed. Fix the build errors and run again.
