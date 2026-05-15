@@ -39,7 +39,7 @@ export interface Module {
 export interface Resource {
   id: string;
   title: string;
-  type: "article" | "video" | "exercise";
+  type: "article" | "video" | "exercise" | "course" | "project" | "code_sample";
   url: string;
 }
 

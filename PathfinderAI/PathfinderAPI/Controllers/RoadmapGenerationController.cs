@@ -85,10 +85,11 @@ public class RoadmapGenerationController : ControllerBase
 
             Roadmap structure:
             - 4 to 6 major themes.
-            - Each theme must contain 2 to 4 learning modules.
-            - Each learning module must contain resources.
+            - Each theme must contain practical learning modules, not exact courses.
+            - Each learning module must include a resourceQuery for finding supporting Microsoft Learn materials.
             - Major theme is a UI roadmap block.
             - Learning modules are shown inside the module detail page.
+            - Microsoft Learn resources will support modules; they should not define the pathway.
             """,
             context = new
             {
@@ -117,29 +118,41 @@ public class RoadmapGenerationController : ControllerBase
 
         var body = await agentResponse.Content.ReadAsStringAsync();
 
+        AiRoadmapResponse? aiRoadmap;
+
         if (!agentResponse.IsSuccessStatusCode)
         {
-            return StatusCode((int)agentResponse.StatusCode, new
-            {
-                message = "Agent service failed",
-                details = body
-            });
+            aiRoadmap = BuildFallbackRoadmap(request);
         }
+        else
+        {
+            var agent = JsonSerializer.Deserialize<AgentInvokeResponse>(
+                body,
+                new JsonSerializerOptions { PropertyNameCaseInsensitive = true }
+            );
 
-        var agent = JsonSerializer.Deserialize<AgentInvokeResponse>(
-            body,
-            new JsonSerializerOptions { PropertyNameCaseInsensitive = true }
-        );
+            var cleanJson = CleanJson(agent?.OutputText ?? "");
 
-        var cleanJson = CleanJson(agent?.OutputText ?? "");
-
-        var aiRoadmap = JsonSerializer.Deserialize<AiRoadmapResponse>(
-            cleanJson,
-            new JsonSerializerOptions
+            try
             {
-                PropertyNameCaseInsensitive = true
+                aiRoadmap = JsonSerializer.Deserialize<AiRoadmapResponse>(
+                    cleanJson,
+                    new JsonSerializerOptions
+                    {
+                        PropertyNameCaseInsensitive = true
+                    }
+                );
             }
-        );
+            catch (JsonException)
+            {
+                aiRoadmap = BuildFallbackRoadmap(request);
+            }
+
+            if (aiRoadmap?.Themes.Count is null or 0)
+            {
+                aiRoadmap = BuildFallbackRoadmap(request);
+            }
+        }
 
         var plan = new LearningPlanResponse
         {
@@ -165,6 +178,7 @@ public class RoadmapGenerationController : ControllerBase
                     EstimatedHours = lesson.EstimatedHours,
                     Topics = lesson.Topics,
                     ProjectTask = lesson.ProjectTask,
+                    ResourceQuery = lesson.ResourceQuery,
                     Resources = new List<ResourceResponse>()
                 }).ToList()
             }).ToList() ?? new List<ModuleResponse>()
@@ -194,6 +208,7 @@ public class RoadmapGenerationController : ControllerBase
                     EstimatedHours = sub.EstimatedHours,
                     Status = "not-started",
                     Topics = sub.Topics,
+                    ResourceQuery = sub.ResourceQuery,
                     Resources = new List<ResourceResponse>()
                 };
 
@@ -274,6 +289,124 @@ public class RoadmapGenerationController : ControllerBase
             "intermediate" => "Junior",
             "advanced" => "Middle",
             _ => "Beginner"
+        };
+    }
+
+    private static AiRoadmapResponse BuildFallbackRoadmap(GenerateRoadmapRequest request)
+    {
+        var trackName = string.IsNullOrWhiteSpace(request.Track)
+            ? "software development"
+            : request.Track;
+
+        return new AiRoadmapResponse
+        {
+            Title = $"{trackName} modular learning pathway",
+            Summary = "Local fallback pathway generated when the AI planner is unavailable. Microsoft Learn resources are still attached through MCP.",
+            Themes = new List<AiRoadmapTheme>
+            {
+                new AiRoadmapTheme
+                {
+                    Title = "Core foundations",
+                    Description = $"Build the baseline concepts and tooling needed for {trackName}.",
+                    EstimatedHours = 10,
+                    Topics = new List<string> { trackName, "Fundamentals", "Developer Tools" },
+                    Lessons = new List<AiRoadmapLesson>
+                    {
+                        new AiRoadmapLesson
+                        {
+                            Title = "Set up the development workflow",
+                            Description = "Prepare local tooling, project structure, and a repeatable development loop.",
+                            EstimatedHours = 4,
+                            Topics = new List<string> { "CLI", "Git", "Project Setup" },
+                            ProjectTask = "Create a starter project and document the commands needed to build and run it.",
+                            ResourceQuery = $"{trackName} developer setup tools git command line"
+                        },
+                        new AiRoadmapLesson
+                        {
+                            Title = "Practice the core programming model",
+                            Description = "Work through the essential syntax, data flow, and debugging patterns for the selected track.",
+                            EstimatedHours = 6,
+                            Topics = new List<string> { "Programming", "Debugging", "Control Flow" },
+                            ProjectTask = "Build a small feature and debug one intentionally introduced defect.",
+                            ResourceQuery = $"{trackName} fundamentals debugging tutorial"
+                        }
+                    }
+                },
+                new AiRoadmapTheme
+                {
+                    Title = "Build practical application features",
+                    Description = "Turn foundations into user-facing or API-facing modules.",
+                    EstimatedHours = 14,
+                    Topics = new List<string> { trackName, "Application Architecture", "APIs" },
+                    Lessons = new List<AiRoadmapLesson>
+                    {
+                        new AiRoadmapLesson
+                        {
+                            Title = "Design module boundaries",
+                            Description = "Break a feature into clear inputs, outputs, and responsibilities.",
+                            EstimatedHours = 4,
+                            Topics = new List<string> { "Architecture", "Modules", "DTOs" },
+                            ProjectTask = "Define contracts for a task-management feature before implementing it.",
+                            ResourceQuery = $"{trackName} application architecture modules DTOs"
+                        },
+                        new AiRoadmapLesson
+                        {
+                            Title = "Implement data-driven behavior",
+                            Description = "Add persistence or state management around a realistic feature workflow.",
+                            EstimatedHours = 5,
+                            Topics = new List<string> { "Data", "State", "Persistence" },
+                            ProjectTask = "Store and update tasks, then handle empty and error states.",
+                            ResourceQuery = $"{trackName} data persistence state management"
+                        },
+                        new AiRoadmapLesson
+                        {
+                            Title = "Expose and consume API operations",
+                            Description = "Connect feature behavior through HTTP endpoints or API calls.",
+                            EstimatedHours = 5,
+                            Topics = new List<string> { "HTTP", "REST", "API Integration" },
+                            ProjectTask = "Create or consume CRUD operations for the task-management feature.",
+                            ResourceQuery = $"{trackName} REST API CRUD HTTP tutorial"
+                        }
+                    }
+                },
+                new AiRoadmapTheme
+                {
+                    Title = "Quality and production readiness",
+                    Description = "Make the project testable, observable, and ready to deploy.",
+                    EstimatedHours = 12,
+                    Topics = new List<string> { "Testing", "Deployment", "Observability" },
+                    Lessons = new List<AiRoadmapLesson>
+                    {
+                        new AiRoadmapLesson
+                        {
+                            Title = "Add focused automated tests",
+                            Description = "Cover critical behavior with tests that validate real user or API workflows.",
+                            EstimatedHours = 4,
+                            Topics = new List<string> { "Testing", "Integration Tests", "Quality" },
+                            ProjectTask = "Write tests for the happy path and one failure path in your feature.",
+                            ResourceQuery = $"{trackName} automated testing integration tests"
+                        },
+                        new AiRoadmapLesson
+                        {
+                            Title = "Prepare for deployment",
+                            Description = "Configure build, environment settings, and deployment checks.",
+                            EstimatedHours = 4,
+                            Topics = new List<string> { "Deployment", "Configuration", "CI/CD" },
+                            ProjectTask = "Create a deployment checklist and run a production build locally.",
+                            ResourceQuery = $"{trackName} deployment CI CD production build"
+                        },
+                        new AiRoadmapLesson
+                        {
+                            Title = "Add basic monitoring signals",
+                            Description = "Capture the health and errors needed to operate the application after release.",
+                            EstimatedHours = 4,
+                            Topics = new List<string> { "Monitoring", "Logging", "Health Checks" },
+                            ProjectTask = "Add a health check and log one meaningful failure path.",
+                            ResourceQuery = $"{trackName} logging monitoring health checks"
+                        }
+                    }
+                }
+            }
         };
     }
 
@@ -389,7 +522,8 @@ public class RoadmapGenerationController : ControllerBase
     {
         var query = string.Join(" ", new[]
         {
-            track,
+            module.ResourceQuery,
+            string.IsNullOrWhiteSpace(module.ResourceQuery) ? track : "",
             module.Title,
             module.Description,
             string.Join(" ", module.Topics.Take(5))
@@ -529,6 +663,7 @@ public class AiRoadmapLesson
     public int EstimatedHours { get; set; }
     public List<string> Topics { get; set; } = new();
     public string ProjectTask { get; set; } = "";
+    public string ResourceQuery { get; set; } = "";
 }
 
 public class AiRoadmapResponse
@@ -584,6 +719,8 @@ public class ModuleResponse
     public List<string> Topics { get; set; } = new();
     public List<ResourceResponse> Resources { get; set; } = new();
     public List<SubModuleResponse> SubModules { get; set; } = new();
+    [JsonIgnore]
+    public string ResourceQuery { get; set; } = "";
 }
 
 public class SubModuleResponse
@@ -594,6 +731,8 @@ public class SubModuleResponse
     public int EstimatedHours { get; set; }
     public List<string> Topics { get; set; } = new();
     public string ProjectTask { get; set; } = "";
+    [JsonIgnore]
+    public string ResourceQuery { get; set; } = "";
     public List<ResourceResponse> Resources { get; set; } = new();
 }
 

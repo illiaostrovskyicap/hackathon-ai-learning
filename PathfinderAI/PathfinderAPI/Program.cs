@@ -7,9 +7,12 @@ builder.Services.AddCors(options =>
 {
     options.AddPolicy("FrontendCors", policy =>
     {
-        policy. 
+        policy.
             WithOrigins(
                 "http://localhost:5173",
+                "http://127.0.0.1:5173",
+                "http://localhost:5174",
+                "http://127.0.0.1:5174",
                 "https://blue-sand-0d701e30f.7.azurestaticapps.net"
             )
             .AllowAnyHeader()

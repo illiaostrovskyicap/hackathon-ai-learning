@@ -1,10 +1,10 @@
+import json
 from typing import Any, Final
 
+import httpx
 from openai import OpenAI
 
 from pathfinder_ai_agents.config import Settings
-
-import httpx
 
 
 class FoundryClientFactory:
@@ -23,10 +23,6 @@ class FoundryClientFactory:
             )
 
         return self._openai_client
-
-
-import json
-
 
 class LearnMcpClient:
     """Microsoft Learn MCP client with fallback resources."""
@@ -70,6 +66,39 @@ class LearnMcpClient:
         }
 
     async def fetch_doc(self, url: str) -> dict[str, Any]:
+        try:
+            mcp_response = await self._call_tool(
+                "microsoft_docs_fetch",
+                {
+                    "url": url,
+                },
+            )
+            results = self._normalize_mcp_results(mcp_response, 1)
+            if results:
+                result = results[0]
+                return {
+                    "endpoint": self._endpoint,
+                    "url": result["url"],
+                    "source_tool": "microsoft_docs_fetch",
+                    "title": result["title"],
+                    "content_type": result["content_type"],
+                    "summary": result["summary"],
+                    "key_points": [],
+                    "is_stubbed": False,
+                }
+        except Exception as exc:
+            return {
+                "endpoint": self._endpoint,
+                "url": url,
+                "source_tool": "microsoft_docs_fetch",
+                "title": "Microsoft Learn resource",
+                "content_type": "documentation",
+                "summary": "Open the Microsoft Learn link for the full article.",
+                "key_points": [],
+                "is_stubbed": True,
+                "fallback_reason": str(exc),
+            }
+
         return {
             "endpoint": self._endpoint,
             "url": url,
@@ -78,11 +107,52 @@ class LearnMcpClient:
             "content_type": "documentation",
             "summary": "Open the Microsoft Learn link for the full article.",
             "key_points": [],
-            "is_stubbed": False,
+            "is_stubbed": True,
         }
 
     async def search_code_samples(self, query: str, limit: int = 5) -> dict[str, Any]:
-        return await self.search_docs(f"{query} code sample", limit)
+        try:
+            mcp_response = await self._call_tool(
+                "microsoft_code_sample_search",
+                {
+                    "query": query,
+                    "limit": limit,
+                },
+            )
+            results = self._normalize_mcp_results(
+                mcp_response,
+                limit,
+                source_tool="microsoft_code_sample_search",
+                content_type="code_sample",
+            )
+            if results:
+                return {
+                    "endpoint": self._endpoint,
+                    "query": query,
+                    "results": results,
+                    "is_stubbed": False,
+                }
+        except Exception as exc:
+            fallback = self._fallback_results(f"{query} code sample", limit)
+            for item in fallback:
+                item["content_type"] = "code_sample"
+            return {
+                "endpoint": self._endpoint,
+                "query": query,
+                "results": fallback,
+                "is_stubbed": True,
+                "fallback_reason": str(exc),
+            }
+
+        fallback = self._fallback_results(f"{query} code sample", limit)
+        for item in fallback:
+            item["content_type"] = "code_sample"
+        return {
+            "endpoint": self._endpoint,
+            "query": query,
+            "results": fallback,
+            "is_stubbed": True,
+        }
 
     async def _call_tool(self, tool_name: str, arguments: dict[str, Any]) -> dict[str, Any]:
         payload = {
@@ -114,20 +184,26 @@ class LearnMcpClient:
         if not raw_text:
             return {}
 
-        if raw_text.startswith("data:"):
-            events = []
-            for line in raw_text.splitlines():
-                line = line.strip()
-                if line.startswith("data:"):
-                    data = line.removeprefix("data:").strip()
-                    if data and data != "[DONE]":
-                        events.append(json.loads(data))
+        events = []
+        for line in raw_text.splitlines():
+            line = line.strip()
+            if line.startswith("data:"):
+                data = line.removeprefix("data:").strip()
+                if data and data != "[DONE]":
+                    events.append(json.loads(data))
 
+        if events:
             return events[-1] if events else {}
 
         return json.loads(raw_text)
 
-    def _normalize_mcp_results(self, response: dict[str, Any], limit: int) -> list[dict[str, Any]]:
+    def _normalize_mcp_results(
+        self,
+        response: dict[str, Any],
+        limit: int,
+        source_tool: str = "microsoft_docs_search",
+        content_type: str = "documentation",
+    ) -> list[dict[str, Any]]:
         result = response.get("result", response)
 
         content = result.get("content") or result.get("results") or []
@@ -160,7 +236,9 @@ class LearnMcpClient:
 
             title = item.get("title") or item.get("name") or "Microsoft Learn resource"
             url = item.get("url") or item.get("contentUrl") or item.get("link") or "#"
-            summary = item.get("summary") or item.get("description") or ""
+            summary = self._compact_summary(
+                item.get("summary") or item.get("description") or item.get("content") or ""
+            )
 
             if url in seen_urls:
                 continue
@@ -171,8 +249,8 @@ class LearnMcpClient:
                 {
                     "title": title,
                     "url": url,
-                    "source_tool": "microsoft_docs_search",
-                    "content_type": "documentation",
+                    "source_tool": source_tool,
+                    "content_type": item.get("content_type") or content_type,
                     "summary": summary,
                     "matched_skills": [],
                 }
@@ -425,3 +503,9 @@ class LearnMcpClient:
                 break
 
         return results
+
+    def _compact_summary(self, value: str, max_length: int = 320) -> str:
+        summary = " ".join(str(value).split())
+        if len(summary) <= max_length:
+            return summary
+        return summary[: max_length - 1].rstrip() + "..."

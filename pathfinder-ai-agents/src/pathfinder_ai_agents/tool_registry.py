@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from json import JSONDecodeError
 from typing import Any
 
-ToolHandler = Callable[[dict[str, Any]], dict[str, Any]]
+ToolHandler = Callable[[dict[str, Any]], Any]
 
 
 @dataclass(frozen=True)

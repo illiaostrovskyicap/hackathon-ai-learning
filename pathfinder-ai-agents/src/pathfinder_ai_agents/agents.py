@@ -1,3 +1,5 @@
+import asyncio
+import inspect
 import json
 from abc import ABC, abstractmethod
 from typing import Any
@@ -56,6 +58,8 @@ class BaseFoundryAgent(ABC):
                     tool_call["name"],
                     tool_call.get("arguments"),
                 )
+                if inspect.isawaitable(result):
+                    result = asyncio.run(result)
                 tool_outputs.append(
                     {
                         "type": "function_call_output",
