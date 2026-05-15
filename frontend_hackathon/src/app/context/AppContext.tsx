@@ -5,6 +5,7 @@ import {
   getActiveLearningPlan,
   sendInterviewMessage as sendInterviewMessageApi,
   updateLearningProgress,
+  completeModuleAssessmentApi,
 } from "../api";
 
 export interface User {
@@ -215,7 +216,6 @@ interface AppContextType {
   interviewSessions: InterviewSession[];
   startInterview: (type: InterviewSession["type"]) => string;
   sendInterviewMessage: (sessionId: string, message: string) => void;
-  completeInterview: (sessionId: string) => void;
   contentLibrary: ContentItem[];
   addContent: (content: Omit<ContentItem, "id" | "createdAt" | "updatedAt">) => void;
   updateContent: (id: string, updates: Partial<ContentItem>) => void;
@@ -457,9 +457,22 @@ export function AppProvider({ children }: { children: ReactNode }) {
           : module
       ),
     };
+      persistPlan(updatedPlan);
+      await completeModule(moduleId, { assessmentScore: 100 });
+    const targetModule = learningPlan.modules.find((m) => m.id === moduleId);
 
-    persistPlan(updatedPlan);
-    await completeModule(moduleId, { assessmentScore: 100 });
+    if (user?.id && targetModule) {
+      completeModuleAssessmentApi({
+        userId: user.id,
+        learningPlanId: learningPlan.id,
+        moduleId: targetModule.id,
+        moduleTitle: targetModule.title,
+        score: 100,
+      }).catch(console.error);
+    }
+
+    setLearningPlan(updatedPlan);
+    localStorage.setItem("learningPlan", JSON.stringify(updatedPlan));
   };
 
   const upgradeSubscription = (tier: "pro" | "enterprise") => {
@@ -536,8 +549,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       userId: user.id,
       sessionId,
       interviewType: session.type,
-      track: user.careerTrack ?? "software-development",
-      experience: user.experienceLevel ?? "beginner",
+      track: learningPlan?.careerTrack ?? "software-development",
+      experience: learningPlan?.experienceLevel ?? "beginner",
       message: content,
       history: updatedMessages.map((m) => ({
         role: m.role,
@@ -552,62 +565,26 @@ export function AppProvider({ children }: { children: ReactNode }) {
       timestamp: new Date().toISOString(),
     };
 
-    setInterviewSessions((prev) =>
-      prev.map((s) =>
-        s.id === sessionId
-          ? {
-            ...s,
-            status: result.isComplete ? "completed" : s.status,
-            messages: [...updatedMessages, assistantMessage],
-            report: result.isComplete
-              ? {
-                overallScore: result.score,
-                strengths: result.strengths ?? [],
-                improvements: result.improvements ?? [],
-                questionScores: [],
-              }
-              : s.report,
-          }
-          : s
-      )
+    const updatedSessions = interviewSessions.map((s) =>
+      s.id === sessionId
+        ? {
+          ...s,
+          status: result.isComplete ? "completed" : s.status,
+          messages: [...updatedMessages, assistantMessage],
+          report: result.isComplete
+            ? {
+              overallScore: result.score,
+              strengths: result.strengths ?? [],
+              improvements: result.improvements ?? [],
+              questionScores: result.questionScores ?? [],
+            }
+            : s.report,
+        }
+        : s
     );
-  };
 
-  const completeInterview = (sessionId: string) => {
-    const session = interviewSessions.find((s) => s.id === sessionId);
-    if (!session) return;
-
-    const report: InterviewReport = {
-      overallScore: 75 + Math.floor(Math.random() * 20),
-      strengths: [
-        "Clear communication",
-        "Good problem-solving approach",
-        "Strong technical knowledge",
-      ],
-      improvements: [
-        "Consider edge cases more thoroughly",
-        "Practice time complexity analysis",
-      ],
-      questionScores: [
-        { question: "Technical fundamentals", score: 85, feedback: "Excellent understanding" },
-        { question: "Problem-solving", score: 78, feedback: "Good approach, minor improvements needed" },
-        { question: "Communication", score: 90, feedback: "Very clear and concise" },
-      ],
-    };
-
-    const completedSession = {
-      ...session,
-      status: "completed" as const,
-      report,
-    };
-
-    const updated = interviewSessions.map((s) =>
-      s.id === sessionId ? completedSession : s
-    );
-    setInterviewSessions(updated);
-    localStorage.setItem("interviewSessions", JSON.stringify(updated));
-
-    updateAnalyticsWithInterview(report.overallScore);
+    setInterviewSessions(updatedSessions);
+    localStorage.setItem("interviewSessions", JSON.stringify(updatedSessions));
   };
 
   const addContent = (content: Omit<ContentItem, "id" | "createdAt" | "updatedAt">) => {
@@ -708,7 +685,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
         interviewSessions,
         startInterview,
         sendInterviewMessage,
-        completeInterview,
         contentLibrary,
         addContent,
         updateContent,
@@ -734,22 +710,6 @@ function getInterviewGreeting(type: string): string {
     behavioral: "Hi there! In this behavioral interview, we'll discuss your experiences and soft skills. Let's start: Tell me about a time when you faced a significant challenge in a project. How did you handle it?",
   };
   return greetings[type as keyof typeof greetings] || greetings.technical;
-}
-
-function generateInterviewResponse(type: string, userMessage: string, messageCount: number): string {
-  const responses = [
-    "That's a good point. Let me follow up: How would you handle error cases in this scenario?",
-    "Interesting approach! Can you explain the time and space complexity of your solution?",
-    "I appreciate your thorough answer. Now, let's dive deeper into another aspect...",
-    "Good explanation. How would this scale with larger datasets?",
-    "That demonstrates solid understanding. Let's move to the next question: What strategies do you use for debugging complex issues?",
-  ];
-
-  if (messageCount >= 8) {
-    return "Thank you for your responses! That concludes our interview. I'll now generate your performance report with detailed feedback.";
-  }
-
-  return responses[Math.min(messageCount / 2, responses.length - 1)];
 }
 
 function generateInitialContent(): ContentItem[] {

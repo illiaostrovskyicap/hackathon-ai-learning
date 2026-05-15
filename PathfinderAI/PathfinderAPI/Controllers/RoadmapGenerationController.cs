@@ -27,7 +27,7 @@ public class RoadmapGenerationController : ControllerBase
     [HttpGet("active")]
     public async Task<IActionResult> GetActiveLearningPlan([FromQuery] string userId)
     {
-        if (!Guid.TryParse(userId, out var userGuid))
+        if (!Guid.TryParse(userId, out var parsedUserId))
         {
             return BadRequest(new { message = "Invalid userId" });
         }
@@ -35,29 +35,83 @@ public class RoadmapGenerationController : ControllerBase
         await using var db = new NpgsqlConnection(GetConnectionString());
         await db.OpenAsync();
 
-        await EnsureLearningPlansTable(db);
-
         await using var command = new NpgsqlCommand(
             """
-            SELECT plan_json
-            FROM learning_plans
-            WHERE user_id = @userId
-            ORDER BY updated_at DESC
-            LIMIT 1;
-            """,
+        SELECT id, plan_json::text
+        FROM learning_plans
+        WHERE user_id = @userId
+        ORDER BY created_at DESC
+        LIMIT 1;
+        """,
             db
         );
 
-        command.Parameters.AddWithValue("userId", userGuid);
+        command.Parameters.AddWithValue("userId", parsedUserId);
 
-        var result = await command.ExecuteScalarAsync();
+        await using var reader = await command.ExecuteReaderAsync();
 
-        if (result is null)
+        if (!await reader.ReadAsync())
         {
-            return NotFound(new { message = "No active learning plan" });
+            return NotFound(new { message = "Learning plan not found" });
         }
 
-        return Content(result.ToString()!, "application/json");
+        var learningPlanId = reader.GetString(0);
+        var json = reader.GetString(1);
+
+        await reader.CloseAsync();
+
+        var plan = JsonSerializer.Deserialize<LearningPlanResponse>(
+            json,
+            new JsonSerializerOptions
+            {
+                PropertyNameCaseInsensitive = true
+            }
+        );
+
+        if (plan == null)
+        {
+            return StatusCode(500, new { message = "Failed to parse learning plan" });
+        }
+
+        var assessments = new Dictionary<string, int>();
+
+        await using (var assessmentCommand = new NpgsqlCommand(
+            """
+        SELECT module_id, score
+        FROM module_assessments
+        WHERE user_id = @userId
+          AND learning_plan_id = @learningPlanId;
+        """,
+            db
+        ))
+        {
+            assessmentCommand.Parameters.AddWithValue("userId", parsedUserId);
+            assessmentCommand.Parameters.AddWithValue("learningPlanId", learningPlanId);
+
+            await using var assessmentReader = await assessmentCommand.ExecuteReaderAsync();
+
+            while (await assessmentReader.ReadAsync())
+            {
+                assessments[assessmentReader.GetString(0)] =
+                    assessmentReader.GetInt32(1);
+            }
+        }
+
+        foreach (var module in plan.Modules)
+        {
+            if (assessments.TryGetValue(module.Id, out var score))
+            {
+                module.Status = "completed";
+
+                module.Assessment = new AssessmentResponse
+                {
+                    Score = score,
+                    CompletedAt = DateTimeOffset.UtcNow
+                };
+            }
+        }
+
+        return Ok(plan);
     }
 
     [HttpPost("generate-roadmap")]
@@ -334,6 +388,67 @@ public class RoadmapGenerationController : ControllerBase
         }
 
         return Ok(plan);
+    }
+
+    [HttpPost("module-assessment")]
+    public async Task<IActionResult> CompleteModuleAssessment(
+    [FromBody] CompleteModuleAssessmentRequest request)
+    {
+        if (!Guid.TryParse(request.UserId, out var userId))
+        {
+            return BadRequest(new { message = "Invalid userId" });
+        }
+
+        var passed = request.Score >= 70;
+
+        await using var db = new NpgsqlConnection(GetConnectionString());
+        await db.OpenAsync();
+
+        await using var command = new NpgsqlCommand(
+            """
+        INSERT INTO module_assessments (
+            user_id,
+            learning_plan_id,
+            module_id,
+            module_title,
+            score,
+            passed,
+            completed_at
+        )
+        VALUES (
+            @userId,
+            @learningPlanId,
+            @moduleId,
+            @moduleTitle,
+            @score,
+            @passed,
+            NOW()
+        )
+        ON CONFLICT (user_id, learning_plan_id, module_id)
+        DO UPDATE SET
+            score = EXCLUDED.score,
+            passed = EXCLUDED.passed,
+            completed_at = NOW();
+        """,
+            db
+        );
+
+        command.Parameters.AddWithValue("userId", userId);
+        command.Parameters.AddWithValue("learningPlanId", request.LearningPlanId);
+        command.Parameters.AddWithValue("moduleId", request.ModuleId);
+        command.Parameters.AddWithValue("moduleTitle", request.ModuleTitle);
+        command.Parameters.AddWithValue("score", request.Score);
+        command.Parameters.AddWithValue("passed", passed);
+
+        await command.ExecuteNonQueryAsync();
+
+        return Ok(new
+        {
+            request.ModuleId,
+            request.ModuleTitle,
+            request.Score,
+            Passed = passed
+        });
     }
 
     private static string MapExperience(string experience)
@@ -713,10 +828,12 @@ public class RoadmapGenerationController : ControllerBase
 
         await command.ExecuteNonQueryAsync();
     }
+}
 
-
-
-
+public class AssessmentResponse
+{
+    public int Score { get; set; }
+    public DateTimeOffset? CompletedAt { get; set; }
 }
 
 public class AiRoadmapTheme
@@ -800,8 +917,7 @@ public class ModuleResponse
     public List<SkillReferenceResponse> Skills { get; set; } = new();
     public List<ResourceResponse> Resources { get; set; } = new();
     public List<SubModuleResponse> SubModules { get; set; } = new();
-    [JsonIgnore]
-    public string ResourceQuery { get; set; } = "";
+    public AssessmentResponse? Assessment { get; set; }
 }
 
 public class SubModuleResponse
@@ -849,4 +965,13 @@ public class ToolSearchResult
 
     [JsonPropertyName("summary")]
     public string Summary { get; set; } = "";
+}
+
+public class CompleteModuleAssessmentRequest
+{
+    public string UserId { get; set; } = "";
+    public string LearningPlanId { get; set; } = "";
+    public string ModuleId { get; set; } = "";
+    public string ModuleTitle { get; set; } = "";
+    public int Score { get; set; } = 100;
 }

@@ -173,17 +173,15 @@ export function InterviewSession() {
               className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
             >
               <div
-                className={`max-w-[80%] rounded-lg px-4 py-3 ${
-                  msg.role === "user"
+                className={`max-w-[80%] rounded-lg px-4 py-3 ${msg.role === "user"
                     ? "bg-indigo-600 text-white"
                     : "bg-gray-100 text-gray-900"
-                }`}
+                  }`}
               >
                 <div className="text-sm">{msg.content}</div>
                 <div
-                  className={`text-xs mt-1 ${
-                    msg.role === "user" ? "text-indigo-200" : "text-gray-500"
-                  }`}
+                  className={`text-xs mt-1 ${msg.role === "user" ? "text-indigo-200" : "text-gray-500"
+                    }`}
                 >
                   {new Date(msg.timestamp).toLocaleTimeString()}
                 </div>
@@ -192,29 +190,35 @@ export function InterviewSession() {
           ))}
           <div ref={messagesEndRef} />
         </div>
-        
-        <div className="flex space-x-2">
-          <textarea
-            value={message}
-            onChange={(e) => setMessage(e.target.value)}
-            onKeyDown={handleKeyPress}
-            placeholder="Type your response..."
-            rows={2}
-            disabled={isLoading}
-            className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none disabled:bg-gray-100"
-          />
-          <button
-            onClick={handleSend}
-            disabled={!message.trim() || isLoading}
-            className="px-6 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
-          >
-            <Send className="h-5 w-5" />
-          </button>
+
+        <div className="border-t bg-white p-4">
+          <div className="flex items-end gap-3">
+            <textarea
+              value={message}
+              onChange={(e) => setMessage(e.target.value)}
+              onKeyDown={handleKeyPress}
+              placeholder="Type your response..."
+              rows={2}
+              disabled={isLoading}
+              className="min-h-[72px] flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none disabled:bg-gray-100"
+            />
+
+            <button
+              onClick={handleSend}
+              disabled={!message.trim() || isLoading}
+              className="h-[72px] w-[72px] flex items-center justify-center bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
+            >
+              <Send className="h-5 w-5" />
+            </button>
+          </div>
+
+          <div className="text-xs text-gray-500 mt-2 text-center">
+            {isLoading
+              ? "AI is evaluating your answer..."
+              : "Answer the current question to continue"}
+          </div>
         </div>
-          
-        <div className="text-xs text-gray-500 mt-2 text-center">
-          {isLoading ? "AI is evaluating your answer..." : "Answer the current question to continue"}
-        </div>
+
         </div>
       </div>
   );

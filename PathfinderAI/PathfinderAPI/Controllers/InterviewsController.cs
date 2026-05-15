@@ -23,6 +23,11 @@ public class InterviewsController : ControllerBase
     [HttpPost("message")]
     public async Task<IActionResult> SendMessage([FromBody] InterviewMessageRequest request)
     {
+        if (!Guid.TryParse(request.UserId, out var parsedUserId))
+        {
+            return BadRequest(new { message = "Invalid userId "});
+        }
+
         var agentsBaseUrl = _configuration["Agents:BaseUrl"];
 
         if (string.IsNullOrWhiteSpace(agentsBaseUrl))
@@ -32,7 +37,12 @@ public class InterviewsController : ControllerBase
 
         var responseCount = request.History.Count(x => x.Role == "user");
 
-        //var weeklyStudyHours = await GetWeeklyStudyHours(request.UserId);
+        var previousQuestions = request.History
+            .Where(x => x.Role.Equals("assistant", StringComparison.OrdinalIgnoreCase))
+            .Select(x => x.Content)
+            .ToList();
+
+        var previousQuestionsText = string.Join("\n", previousQuestions.Select(q => $"- {q}"));
 
         var agentPayload = new
         {
@@ -60,9 +70,20 @@ public class InterviewsController : ControllerBase
                 "improvements": ["string"]
             }}
 
+            Previous assistant questions:
+                {previousQuestionsText}
+
+            Important anti-repetition rules:
+            - Do NOT repeat or rephrase previous questions.
+            - Do NOT ask again about the same concept if it was already asked.
+            - If stack vs queue, URL/browser flow, OOP vs procedural, or two-sum were already asked, move to a different topic.
+            - Pick a new topic from the interview type scope.
+            - For technical interviews, rotate across: networking, HTTP, databases, APIs, OOP, debugging, system design, security, performance.
+            - For coding interviews, rotate across: arrays, strings, hash maps, recursion, trees, sorting, complexity, edge cases.
+            - For behavioral interviews, rotate across: teamwork, conflict, ownership, deadlines, ambiguity, feedback, communication.
             Rules:
-            - Ask exactly ONE next interview question if response_count is less than 5.
-            - If response_count is 5 or more, finish the interview.
+            - Ask exactly ONE NEW interview question if response_count is less than 2.
+            - If response_count is 2 or more, finish the interview.
             - When finishing, set isComplete to true.
             - When finishing, return final score from 1 to 100.
             - When not finished, set isComplete to false.
@@ -73,6 +94,9 @@ public class InterviewsController : ControllerBase
 
             context = new
             {
+                task_type = "interview_session",
+                max_questions = 2,
+                previous_questions = previousQuestions,
                 track_id = request.Track,
                 preferred_locale = "en-US",
                 experience_level = MapExperience(request.Experience),
@@ -128,13 +152,13 @@ public class InterviewsController : ControllerBase
             return StatusCode(500, new { message = "Invalid agent response", raw = cleanJson });
         }
 
-        if (responseCount >= 5)
+        if (responseCount >= 2)
         {
             result.IsComplete = true;
 
             if (result.Score <= 0)
             {
-                result.Score = 75;
+                result.Score = 50;
             }
 
             if (result.Strengths.Count == 0)
@@ -169,6 +193,10 @@ public class InterviewsController : ControllerBase
             })
             .ToList();
 
+        var lastAssistantQuestion = request.History
+            .LastOrDefault(x => x.Role.Equals("assistant", StringComparison.OrdinalIgnoreCase))
+            ?.Content ?? "Interview question";
+
         var questionScores = new List<QuestionScoreResponse>();
 
         if (!string.IsNullOrWhiteSpace(request.Message) &&
@@ -177,7 +205,7 @@ public class InterviewsController : ControllerBase
         {
             questionScores.Add(new QuestionScoreResponse
             {
-                Question = request.Message,
+                Question = lastAssistantQuestion,
                 Score = result.Score,
                 Feedback = result.Feedback
             });
@@ -367,34 +395,6 @@ public class InterviewsController : ControllerBase
                 ? null
                 : (int?)Convert.ToInt32(Math.Round(reader.GetDecimal(2)))
         });
-    }
-
-    private async Task<int> GetWeeklyStudyHours(string? userId)
-    {
-        if (!Guid.TryParse(userId, out var parsedUserId))
-        {
-            return 6;
-        }
-
-        await using var db = new NpgsqlConnection(GetConnectionString());
-        await db.OpenAsync();
-
-        await using var command = new NpgsqlCommand(
-            """
-        SELECT COALESCE(weekly_hours, 6)
-        FROM learning_plans
-        WHERE user_id = @userId
-        ORDER BY generated_at DESC
-        LIMIT 1;
-        """,
-            db
-        );
-
-        command.Parameters.AddWithValue("userId", parsedUserId);
-
-        var result = await command.ExecuteScalarAsync();
-
-        return result is int hours ? hours : 6;
     }
 
     private string GetConnectionString()

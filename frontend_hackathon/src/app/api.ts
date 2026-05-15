@@ -279,3 +279,38 @@ export async function getInterviewStats(userId: string) {
   if (!response.ok) throw new Error(await response.text());
   return response.json();
 }
+
+export async function getDashboard(userId: string) {
+  const response = await fetch(
+    `${API_BASE_URL}/api/dashboard/${userId}`
+  );
+
+  if (!response.ok) {
+    throw new Error(await response.text());
+  }
+
+  return response.json();
+}
+
+export async function completeModuleAssessmentApi(payload: {
+  userId: string;
+  learningPlanId: string;
+  moduleId: string;
+  moduleTitle: string;
+  score: number;
+}) {
+  const response = await fetch(`${API_BASE_URL}/api/learning-plans/module-assessment`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    throw new Error(await response.text());
+  }
+
+  return response.json();
+}
+
