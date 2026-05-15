@@ -28,12 +28,12 @@ def list_tools(request: Request) -> dict[str, list[str]]:
 
 
 @router.post("/api/tools/{tool_name}")
-def execute_tool(
+async def execute_tool(
     tool_name: str,
     arguments: dict[str, Any],
     request: Request,
 ) -> dict[str, Any]:
-    return _orchestrator(request).execute_tool(tool_name, arguments)
+    return await _orchestrator(request).execute_tool(tool_name, arguments)
 
 
 @router.post("/api/agents/invoke", response_model=AgentInvocationResponse)

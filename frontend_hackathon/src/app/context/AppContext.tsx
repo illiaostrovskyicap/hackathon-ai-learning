@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import { login } from "../api";
-import { generateLearningPlan, getActiveLearningPlan } from "../api";
+import { generateLearningPlan, getActiveLearningPlan, sendInterviewMessage as sendInterviewMessageApi } from "../api";
 
 export interface User {
   id: string;
@@ -118,7 +118,14 @@ interface AppContextType {
   signOut: () => void;
   updateProfile: (updates: Partial<User>) => void;
   deleteAccount: () => void;
-  completeOnboarding: (track: string, experience: string, language: string) => Promise<void>;
+  completeOnboarding: (
+  track: string,
+  experience: string,
+  language: string,
+  goal: string,
+  weeklyHours: number,
+  focusAreas: string[]
+) => Promise<void>;
   learningPlan: LearningPlan | null;
   updateModuleStatus: (moduleId: string, status: Module["status"]) => void;
   submitAssessment: (moduleId: string, answers: number[]) => void;
@@ -134,6 +141,7 @@ interface AppContextType {
   addContent: (content: Omit<ContentItem, "id" | "createdAt" | "updatedAt">) => void;
   updateContent: (id: string, updates: Partial<ContentItem>) => void;
   deleteContent: (id: string) => void;
+  completeModuleAssessment: (moduleId: string) => void;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -237,7 +245,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
     localStorage.removeItem("interviewSessions");
   };
 
-  const completeOnboarding = async (track: string, experience: string, language: string) => {
+  const completeOnboarding = async (
+  track: string,
+  experience: string,
+  language: string,
+  goal: string,
+  weeklyHours: number,
+  focusAreas: string[]
+): Promise<void> => {
     if (!user) return;
 
     const plan = await generateLearningPlan({
@@ -245,6 +260,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
       track,
       experience,
       language,
+      goal,
+      weeklyHours,
+      focusAreas,
     });
 
     const updatedUser = { ...user, hasCompletedOnboarding: true };
@@ -308,6 +326,29 @@ export function AppProvider({ children }: { children: ReactNode }) {
     updateAnalytics(updatedPlan);
   };
 
+  const completeModuleAssessment = (moduleId: string) => {
+    if (!learningPlan) return;
+
+    const updatedPlan = {
+      ...learningPlan,
+      modules: learningPlan.modules.map((module) =>
+        module.id === moduleId
+          ? {
+            ...module,
+            status: "completed" as const,
+            assessment: {
+              ...(module.assessment ?? {}),
+              score: 100,
+            },
+          }
+          : module
+      ),
+    };
+
+    setLearningPlan(updatedPlan);
+    localStorage.setItem("learningPlan", JSON.stringify(updatedPlan));
+  };
+
   const upgradeSubscription = (tier: "pro" | "enterprise") => {
     const features = tier === "pro"
       ? ["Unlimited modules", "AI Interview Assistant", "Priority support", "Advanced analytics"]
@@ -357,34 +398,66 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return sessionId;
   };
 
-  const sendInterviewMessage = (sessionId: string, message: string) => {
+  const sendInterviewMessage = async (sessionId: string, content: string) => {
     const session = interviewSessions.find((s) => s.id === sessionId);
-    if (!session) return;
+    if (!session || !user) return;
 
-    const userMessage: InterviewMessage = {
-      id: "msg-" + Date.now(),
-      role: "user",
-      content: message,
+    const userMessage = {
+      id: crypto.randomUUID(),
+      role: "user" as const,
+      content,
       timestamp: new Date().toISOString(),
     };
 
-    const aiResponse: InterviewMessage = {
-      id: "msg-" + (Date.now() + 1),
-      role: "assistant",
-      content: generateInterviewResponse(session.type, message, session.messages.length),
-      timestamp: new Date(Date.now() + 1000).toISOString(),
-    };
+    const updatedMessages = [...session.messages, userMessage];
 
-    const updatedSession = {
-      ...session,
-      messages: [...session.messages, userMessage, aiResponse],
-    };
-
-    const updated = interviewSessions.map((s) =>
-      s.id === sessionId ? updatedSession : s
+    setInterviewSessions((prev) =>
+      prev.map((s) =>
+        s.id === sessionId
+          ? { ...s, messages: updatedMessages }
+          : s
+      )
     );
-    setInterviewSessions(updated);
-    localStorage.setItem("interviewSessions", JSON.stringify(updated));
+
+    const result = await sendInterviewMessageApi({
+      userId: user.id,
+      sessionId,
+      interviewType: session.type,
+      track: user.careerTrack ?? "software-development",
+      experience: user.experienceLevel ?? "beginner",
+      message: content,
+      history: updatedMessages.map((m) => ({
+        role: m.role,
+        content: m.content,
+      })),
+    });
+
+    const assistantMessage = {
+      id: crypto.randomUUID(),
+      role: "assistant" as const,
+      content: result.reply,
+      timestamp: new Date().toISOString(),
+    };
+
+    setInterviewSessions((prev) =>
+      prev.map((s) =>
+        s.id === sessionId
+          ? {
+            ...s,
+            status: result.isComplete ? "completed" : s.status,
+            messages: [...updatedMessages, assistantMessage],
+            report: result.isComplete
+              ? {
+                overallScore: result.score,
+                strengths: result.strengths ?? [],
+                improvements: result.improvements ?? [],
+                questionScores: [],
+              }
+              : s.report,
+          }
+          : s
+      )
+    );
   };
 
   const completeInterview = (sessionId: string) => {
@@ -524,6 +597,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         addContent,
         updateContent,
         deleteContent,
+        completeModuleAssessment
       }}
     >
       {children}

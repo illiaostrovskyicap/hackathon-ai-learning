@@ -71,25 +71,33 @@ public class RoadmapGenerationController : ControllerBase
         {
             agent_name = "roadmap-planner",
             message = $"""
-            Generate a structured learning roadmap.
+            Create a structured learning roadmap for a developer.
 
-            User selected:
+            Selected onboarding data:
             Track: {request.Track}
             Experience: {request.Experience}
             Language: {request.Language}
+            Goal: {request.Goal}
+            Weekly study time: {request.WeeklyHours} hours
+            Focus areas: {string.Join(", ", request.FocusAreas)}
 
-            Please respond with JSON that follows the schema in the system instructions.
+            Return JSON only.
 
-            Each roadmap module should represent one large learning theme.
-            Topics should be smaller subtopics inside that module.
-            Resources should be learning materials shown on the module detail page.
+            Roadmap structure:
+            - 4 to 6 major themes.
+            - Each theme must contain 2 to 4 learning modules.
+            - Each learning module must contain resources.
+            - Major theme is a UI roadmap block.
+            - Learning modules are shown inside the module detail page.
             """,
             context = new
             {
                 track_id = request.Track,
                 preferred_locale = request.Language == "en" ? "en-US" : request.Language,
                 experience_level = MapExperience(request.Experience),
-                weekly_study_hours = 6,
+                goal = request.Goal,
+                weekly_study_hours = request.WeeklyHours <= 0 ? 6 : request.WeeklyHours,
+                focus_area = request.FocusAreas,
                 current_goal = $"Build a learning roadmap for {request.Track}",
                 completed_skills = Array.Empty<string>(),
                 skills_to_improve = Array.Empty<string>(),
@@ -140,38 +148,76 @@ public class RoadmapGenerationController : ControllerBase
             Experience = request.Experience,
             Language = request.Language,
             GeneratedAt = DateTimeOffset.UtcNow,
-            Modules = aiRoadmap?.Modules.Select((module, index) => new ModuleResponse
+            Modules = aiRoadmap?.Themes.Select((theme, index) => new ModuleResponse
             {
                 Id = $"mod-{index + 1}",
-                Title = module.Title,
-                Description = module.Description,
-                EstimatedHours = module.EstimatedHours,
+                Title = theme.Title,
+                Description = theme.Description,
+                EstimatedHours = theme.EstimatedHours,
                 Status = "not-started",
-                Topics = module.Topics,
-                Resources = module.Resources.Count > 0
-                    ? module.Resources
-                    : new List<ResourceResponse>
-                    {
-                        new ResourceResponse
-                        {
-                            Id = $"res-{index + 1}-1",
-                            Title = $"{module.Title} learning guide",
-                            Type = "course",
-                            Url = "#"
-                        }
-                    }
+                Topics = theme.Topics,
+                Resources = new List<ResourceResponse>(),
+                SubModules = theme.Lessons.Select((lesson, lessonIndex) => new SubModuleResponse
+                {
+                    Id = $"mod-{index + 1}-lesson-{lessonIndex + 1}",
+                    Title = lesson.Title,
+                    Description = lesson.Description,
+                    EstimatedHours = lesson.EstimatedHours,
+                    Topics = lesson.Topics,
+                    ProjectTask = lesson.ProjectTask,
+                    Resources = new List<ResourceResponse>()
+                }).ToList()
             }).ToList() ?? new List<ModuleResponse>()
         };
 
+        foreach (var module in plan.Modules)
+        {
+            if (module.SubModules.Count > 0)
+            {
+                module.EstimatedHours = module.SubModules.Sum(x => x.EstimatedHours);
+            }
+        }
+
         for (var i = 0; i < plan.Modules.Count; i++)
         {
-            plan.Modules[i].Resources = await LoadResourcesForModule(
-                client,
-                agentsBaseUrl,
-                request.Track,
-                plan.Modules[i],  
-                i
-            );
+            var themeResources = new List<ResourceResponse>();
+
+            for (var j = 0; j < plan.Modules[i].SubModules.Count; j++)
+            {
+                var sub = plan.Modules[i].SubModules[j];
+
+                var resourceQueryModule = new ModuleResponse
+                {
+                    Id = sub.Id,
+                    Title = sub.Title,
+                    Description = sub.Description,
+                    EstimatedHours = sub.EstimatedHours,
+                    Status = "not-started",
+                    Topics = sub.Topics,
+                    Resources = new List<ResourceResponse>()
+                };
+
+                sub.Resources = await LoadResourcesForModule(
+                    client,
+                    agentsBaseUrl,
+                    request.Track,
+                    resourceQueryModule,
+                    i * 10 + j
+                );
+
+                themeResources.AddRange(sub.Resources);
+            }
+
+            plan.Modules[i].Resources = themeResources
+                .Where(r =>
+                    !string.IsNullOrWhiteSpace(r.Url)
+                    && r.Url != "#"
+                    && (r.Url.StartsWith("http://") || r.Url.StartsWith("https://"))
+                )
+                .GroupBy(r => r.Url.Trim().ToLowerInvariant())
+                .Select(g => g.First())
+                .Take(8)
+                .ToList();
         }
 
         if (Guid.TryParse(request.UserId, out var userGuid))
@@ -341,7 +387,13 @@ public class RoadmapGenerationController : ControllerBase
         ModuleResponse module,
         int moduleIndex)
     {
-        var query = $"{track} {module.Title} {string.Join(" ", module.Topics.Take(3))}";
+        var query = string.Join(" ", new[]
+        {
+            track,
+            module.Title,
+            module.Description,
+            string.Join(" ", module.Topics.Take(5))
+        }).Trim();
 
         var toolPayload = new
         {
@@ -370,7 +422,11 @@ public class RoadmapGenerationController : ControllerBase
         );
 
         var resources = searchResult?.Results
-            .Where(item => !string.IsNullOrWhiteSpace(item.Url))
+            .Where(item =>
+                !string.IsNullOrWhiteSpace(item.Url)
+                && item.Url != "#"
+                && (item.Url.StartsWith("http://") || item.Url.StartsWith("https://"))
+            )
             .GroupBy(item => item.Url.Trim().ToLowerInvariant())
             .Select(group => group.First())
             .Take(3)
@@ -402,21 +458,18 @@ public class RoadmapGenerationController : ControllerBase
 
     private static List<ResourceResponse> CreateFallbackResources(ModuleResponse module, int moduleIndex)
     {
+        var query = Uri.EscapeDataString(
+            $"{module.Title} {string.Join(" ", module.Topics)}"
+        );
+
         return new List<ResourceResponse>
         {
             new ResourceResponse
             {
                 Id = $"res-{moduleIndex + 1}-1",
-                Title = $"{module.Title} learning guide",
+                Title = $"{module.Title} learning search",
                 Type = "article",
-                Url = "#"
-            },
-            new ResourceResponse
-            {
-                Id = $"res-{moduleIndex + 1}-2",
-                Title = $"{module.Title} practice task",
-                Type = "project",
-                Url = "#"
+                Url = $"https://learn.microsoft.com/search/?terms={query}"
             }
         };
     }
@@ -459,6 +512,25 @@ public class RoadmapGenerationController : ControllerBase
 
 }
 
+public class AiRoadmapTheme
+{
+    public string Title { get; set; } = "";
+    public string Description { get; set; } = "";
+    public int EstimatedHours { get; set; }
+    public List<string> Topics { get; set; } = new();
+    [JsonPropertyName("lessons")]
+    public List<AiRoadmapLesson> Lessons { get; set; } = new();
+}
+
+public class AiRoadmapLesson
+{
+    public string Title { get; set; } = "";
+    public string Description { get; set; } = "";
+    public int EstimatedHours { get; set; }
+    public List<string> Topics { get; set; } = new();
+    public string ProjectTask { get; set; } = "";
+}
+
 public class AiRoadmapResponse
 {
     [JsonPropertyName("title")]
@@ -467,26 +539,8 @@ public class AiRoadmapResponse
     [JsonPropertyName("summary")]
     public string Summary { get; set; } = "";
 
-    [JsonPropertyName("modules")]
-    public List<AiRoadmapModule> Modules { get; set; } = new();
-}
-
-public class AiRoadmapModule
-{
-    [JsonPropertyName("title")]
-    public string Title { get; set; } = "";
-
-    [JsonPropertyName("description")]
-    public string Description { get; set; } = "";
-
-    [JsonPropertyName("estimatedHours")]
-    public int EstimatedHours { get; set; }
-
-    [JsonPropertyName("topics")]
-    public List<string> Topics { get; set; } = new();
-
-    [JsonPropertyName("resources")]
-    public List<ResourceResponse> Resources { get; set; } = new();
+    [JsonPropertyName("themes")]
+    public List<AiRoadmapTheme> Themes { get; set; } = new();
 }
 
 public class GenerateRoadmapRequest
@@ -495,6 +549,9 @@ public class GenerateRoadmapRequest
     public string Track { get; set; } = "";
     public string Experience { get; set; } = "";
     public string Language { get; set; } = "en";
+    public string Goal { get; set; } = "get-job-ready";
+    public int WeeklyHours { get; set; } = 6;
+    public List<string> FocusAreas { get; set; } = new();
 }
 
 public class AgentInvokeResponse
@@ -525,6 +582,18 @@ public class ModuleResponse
     public int EstimatedHours { get; set; }
     public string Status { get; set; } = "not-started";
     public List<string> Topics { get; set; } = new();
+    public List<ResourceResponse> Resources { get; set; } = new();
+    public List<SubModuleResponse> SubModules { get; set; } = new();
+}
+
+public class SubModuleResponse
+{
+    public string Id { get; set; } = "";
+    public string Title { get; set; } = "";
+    public string Description { get; set; } = "";
+    public int EstimatedHours { get; set; }
+    public List<string> Topics { get; set; } = new();
+    public string ProjectTask { get; set; } = "";
     public List<ResourceResponse> Resources { get; set; } = new();
 }
 

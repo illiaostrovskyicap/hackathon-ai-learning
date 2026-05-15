@@ -1,6 +1,8 @@
 import { useApp } from "../context/AppContext";
 import { useNavigate } from "react-router";
 import { MessageSquare, Code, Users, Clock, Award, TrendingUp } from "lucide-react";
+import { useEffect, useState } from "react";
+import { getInterviewSessions, getInterviewStats } from "../api";
 
 const INTERVIEW_TYPES = [
   {
@@ -30,7 +32,21 @@ const INTERVIEW_TYPES = [
 ];
 
 export function Interview() {
-  const { subscription, interviewSessions, startInterview } = useApp();
+  const { user, subscription, startInterview } = useApp();
+  const [interviewSessions, setInterviewSessions] = useState<any[]>([]);
+  const [stats, setStats] = useState({
+    totalSessions: 0,
+    completed: 0,
+    averageScore: null as number | null,
+  });
+
+  useEffect(() => {
+    if (!user?.id) return;
+
+    getInterviewStats(user.id).then(setStats).catch(console.error);
+    getInterviewSessions(user.id).then(setInterviewSessions).catch(console.error);
+  }, [user?.id]);
+
   const navigate = useNavigate();
 
   const canAccessInterviews = subscription.tier === "pro" || subscription.tier === "enterprise";
@@ -45,10 +61,6 @@ export function Interview() {
   };
 
   const completedInterviews = interviewSessions.filter((s) => s.status === "completed");
-  const averageScore = completedInterviews.length > 0
-    ? completedInterviews.reduce((sum, s) => sum + (s.report?.overallScore || 0), 0) /
-      completedInterviews.length
-    : 0;
 
   return (
     <div className="space-y-6">
@@ -88,7 +100,7 @@ export function Interview() {
             <Clock className="h-8 w-8 text-blue-600" />
           </div>
           <div className="text-2xl font-bold text-gray-900">
-            {interviewSessions.length}
+            {stats.totalSessions}
           </div>
           <div className="text-sm text-gray-600">Total Sessions</div>
         </div>
@@ -98,7 +110,7 @@ export function Interview() {
             <Award className="h-8 w-8 text-green-600" />
           </div>
           <div className="text-2xl font-bold text-gray-900">
-            {completedInterviews.length}
+            {stats.completed}
           </div>
           <div className="text-sm text-gray-600">Completed</div>
         </div>
@@ -108,7 +120,7 @@ export function Interview() {
             <TrendingUp className="h-8 w-8 text-purple-600" />
           </div>
           <div className="text-2xl font-bold text-gray-900">
-            {averageScore > 0 ? Math.round(averageScore) : "-"}
+            {stats.averageScore ?? "-"}
           </div>
           <div className="text-sm text-gray-600">Average Score</div>
         </div>
@@ -176,8 +188,8 @@ export function Interview() {
                       {session.type} Interview
                     </div>
                     <div className="text-sm text-gray-600">
-                      {new Date(session.date).toLocaleDateString()} at{" "}
-                      {new Date(session.date).toLocaleTimeString()}
+                      {new Date(session.updatedAt ?? session.createdAt ?? Date.now()).toLocaleDateString()} at{" "}
+                      {new Date(session.updatedAt ?? session.createdAt ?? Date.now()).toLocaleTimeString()}
                     </div>
                   </div>
                   <div className="text-right">

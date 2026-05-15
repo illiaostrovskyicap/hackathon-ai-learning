@@ -22,6 +22,20 @@ function normalizeLearningPlan(data: any) {
         type: r.type ?? r.Type,
         url: r.url ?? r.Url,
       })),
+      subModules: (m.subModules ?? m.SubModules ?? []).map((sm: any) => ({
+        id: sm.id ?? sm.Id,
+        title: sm.title ?? sm.Title,
+        description: sm.description ?? sm.Description,
+        estimatedHours: sm.estimatedHours ?? sm.EstimatedHours ?? 4,
+        topics: sm.topics ?? sm.Topics ?? [],
+        projectTask: sm.projectTask ?? sm.ProjectTask ?? "",
+        resources: (sm.resources ?? sm.Resources ?? []).map((r: any) => ({
+          id: r.id ?? r.Id,
+          title: r.title ?? r.Title,
+          type: r.type ?? r.Type,
+          url: r.url ?? r.Url,
+        })),
+      })),
     })),
   };
 }
@@ -61,6 +75,9 @@ export async function generateLearningPlan(payload: {
   track: string;
   experience: string;
   language: string;
+  goal?: string;
+  weeklyHours?: number;
+  focusAreas?: string[];
 }) {
   const response = await fetch(`${API_BASE_URL}/api/learning-plans/generate-roadmap`, {
   method: "POST",
@@ -101,4 +118,56 @@ export async function getActiveLearningPlan(userId: string) {
 
   const data = await response.json();
   return normalizeLearningPlan(data);
+}
+
+export type InterviewChatMessage = {
+  role: "user" | "assistant";
+  content: string;
+};
+
+export type InterviewAgentResult = {
+  reply: string;
+  feedback: string;
+  score: number;
+  isComplete: boolean;
+  strengths: string[];
+  improvements: string[];
+};
+
+export async function sendInterviewMessage(payload: {
+  userId: string;
+  sessionId: string;
+  interviewType: string;
+  track: string;
+  experience: string;
+  message: string;
+  history: { role: string; content: string }[];
+}) {
+  console.log("INTERVIEW API PAYLOAD", payload);
+
+  const response = await fetch(`${API_BASE_URL}/api/interviews/message`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    throw new Error(await response.text());
+  }
+
+  return response.json();
+}
+
+export async function getInterviewSessions(userId: string) {
+  const response = await fetch(`${API_BASE_URL}/api/interviews/user/${userId}`);
+  if (!response.ok) throw new Error(await response.text());
+  return response.json();
+}
+
+export async function getInterviewStats(userId: string) {
+  const response = await fetch(`${API_BASE_URL}/api/interviews/user/${userId}/stats`);
+  if (!response.ok) throw new Error(await response.text());
+  return response.json();
 }

@@ -5,11 +5,12 @@ import { ArrowLeft, Send, CheckCircle2, TrendingUp, AlertCircle } from "lucide-r
 
 export function InterviewSession() {
   const { sessionId } = useParams();
-  const { interviewSessions, sendInterviewMessage, completeInterview } = useApp();
+  const { user, interviewSessions, sendInterviewMessage } = useApp();
+
   const navigate = useNavigate();
   const [message, setMessage] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-
   const session = interviewSessions.find((s) => s.id === sessionId);
 
   useEffect(() => {
@@ -24,14 +25,23 @@ export function InterviewSession() {
     );
   }
 
-  const handleSend = () => {
-    if (!message.trim() || session.status === "completed") return;
-    sendInterviewMessage(session.id, message);
-    setMessage("");
-  };
+  const handleSend = async () => {
+    if (!session) return;
 
-  const handleComplete = () => {
-    completeInterview(session.id);
+    const text = message.trim();
+    if (!text || isLoading) return;
+
+    setIsLoading(true);
+    setMessage("");
+
+    try {
+      await sendInterviewMessage(session.id, text);
+    } catch (error) {
+      console.error("Interview send failed:", error);
+      alert("Failed to send interview message");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
@@ -182,41 +192,30 @@ export function InterviewSession() {
           ))}
           <div ref={messagesEndRef} />
         </div>
-
-        <div className="border-t p-4">
-          {session.messages.length >= 10 ? (
-            <button
-              onClick={handleComplete}
-              className="w-full py-3 bg-green-600 text-white rounded-lg hover:bg-green-700"
-            >
-              Complete Interview & View Report
-            </button>
-          ) : (
-            <div className="flex space-x-2">
-              <textarea
-                value={message}
-                onChange={(e) => setMessage(e.target.value)}
-                onKeyPress={handleKeyPress}
-                placeholder="Type your response..."
-                rows={2}
-                className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none"
-              />
-              <button
-                onClick={handleSend}
-                disabled={!message.trim()}
-                className="px-6 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
-              >
-                <Send className="h-5 w-5" />
-              </button>
-            </div>
-          )}
-          <div className="text-xs text-gray-500 mt-2 text-center">
-            {session.messages.length < 10
-              ? `${10 - session.messages.length} more responses until completion`
-              : "Ready to complete interview"}
-          </div>
+        
+        <div className="flex space-x-2">
+          <textarea
+            value={message}
+            onChange={(e) => setMessage(e.target.value)}
+            onKeyDown={handleKeyPress}
+            placeholder="Type your response..."
+            rows={2}
+            disabled={isLoading}
+            className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none disabled:bg-gray-100"
+          />
+          <button
+            onClick={handleSend}
+            disabled={!message.trim() || isLoading}
+            className="px-6 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
+          >
+            <Send className="h-5 w-5" />
+          </button>
+        </div>
+          
+        <div className="text-xs text-gray-500 mt-2 text-center">
+          {isLoading ? "AI is evaluating your answer..." : "Answer the current question to continue"}
+        </div>
         </div>
       </div>
-    </div>
   );
 }

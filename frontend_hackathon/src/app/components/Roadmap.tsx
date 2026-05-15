@@ -80,14 +80,26 @@ export function Roadmap() {
       </div>
 
       <div className="space-y-4">
-        {normalizedModules.map((module) => {
+        {normalizedModules.map((module, index) => {
+          const previousModule = normalizedModules[index - 1];
+
+          const isLocked =
+            index > 0 &&
+            previousModule &&
+            previousModule.status !== "completed";
+
           const status = module.status;
 
           return (
             <div
               key={module.id}
-              className="bg-white rounded-lg shadow p-6 cursor-pointer hover:shadow-md transition-all"
-              onClick={() => navigate(`/module/${module.id}`)}
+              className={`bg-white rounded-lg shadow p-6 transition-all ${isLocked ? "opacity-50 cursor-not-allowed" : "cursor-pointer hover:shadow-md"
+                }`}
+              onClick={() => {
+                if (!isLocked) {
+                  navigate(`/module/${module.id}`);
+                }
+              }}
             >
               <div className="flex items-start space-x-4">
                 <div className="flex-shrink-0 mt-1">

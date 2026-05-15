@@ -5,7 +5,9 @@ import { ArrowLeft, BookOpen, Video, FileText, CheckCircle2, PlayCircle, Externa
 
 export function ModuleDetail() {
   const { moduleId } = useParams();
-  const { learningPlan, updateModuleStatus, submitAssessment } = useApp();
+  const { learningPlan, updateModuleStatus, submitAssessment, completeModuleAssessment } = useApp();
+  const isValidUrl = (url?: string) =>
+  !!url && url !== "#" && (url.startsWith("http://") || url.startsWith("https://"));
   const navigate = useNavigate();
   const [showAssessment, setShowAssessment] = useState(false);
   const [answers, setAnswers] = useState<number[]>([]);
@@ -130,37 +132,174 @@ export function ModuleDetail() {
                 {topic}
               </span>
             ))}
+            {module.subModules && module.subModules.length > 0 && (
+              <div className="mt-8">
+                <h2 className="text-2xl font-bold text-gray-900 mb-4">
+                  Lessons in this theme
+                </h2>
+
+                <div className="space-y-4">
+                  {module.subModules.map((subModule: any, index: number) => (
+                    <div key={subModule.id} className="rounded-xl border border-gray-200 p-5">
+                      <div className="flex items-start justify-between gap-4">
+                        <div>
+                          <div className="text-sm font-medium text-indigo-600">
+                            Lesson {index + 1}
+                          </div>
+                          <h3 className="text-lg font-semibold text-gray-900 mt-1">
+                            {subModule.title}
+                          </h3>
+                          <p className="text-gray-600 mt-1">
+                            {subModule.description}
+                          </p>
+                        </div>
+
+                        <div className="text-sm text-gray-500">
+                          {subModule.estimatedHours}h
+                        </div>
+                      </div>
+
+                      <div className="flex flex-wrap gap-2 mt-3">
+                        {(subModule.topics ?? []).map((topic: string) => (
+                          <span
+                            key={topic}
+                            className="px-2 py-1 bg-gray-100 text-gray-700 rounded text-xs"
+                          >
+                            {topic}
+                          </span>
+                        ))}
+                      </div>
+
+                      {subModule.projectTask && (
+                        <div className="mt-4 rounded-lg bg-indigo-50 p-4 text-sm text-indigo-900">
+                          <strong>Practice:</strong> {subModule.projectTask}
+                        </div>
+                      )}
+
+                      {subModule.resources?.length > 0 && (
+                        <div className="mt-4 space-y-2">
+                          {subModule.resources.map((resource: any) =>
+                            isValidUrl(resource.url) ? (
+                              <a
+                                key={resource.id}
+                                href={resource.url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="block rounded-lg border border-gray-200 p-3 hover:bg-gray-50 transition"
+                              >
+                                <div className="font-medium text-gray-900">
+                                  {resource.title}
+                                </div>
+
+                                <div className="text-sm text-gray-500 capitalize">
+                                  {resource.type}
+                                </div>
+                              </a>
+                            ) : (
+                              <div
+                                key={resource.id}
+                                className="rounded-lg border border-gray-200 p-3 opacity-60"
+                              >
+                                <div className="font-medium text-gray-900">
+                                  {resource.title}
+                                </div>
+
+                                <div className="text-sm text-gray-500 capitalize">
+                                  {resource.type} · unavailable
+                                </div>
+                              </div>
+                            )
+                          )}
+                        </div>
+                      )}
+
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
         <div className="mb-8">
-          <h2 className="text-xl font-semibold text-gray-900 mb-4">Learning Resources</h2>
+          <h2 className="text-xl font-semibold text-gray-900 mb-4">All resources for this theme</h2>
           <div className="space-y-3">
-            {module.resources.map((resource) => (
-              <a
-                key={resource.id}
-                href={resource.url && resource.url !== "#" ? resource.url : undefined}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center space-x-4 rounded-xl border border-gray-200 p-4 transition hover:border-indigo-300 hover:bg-indigo-50 hover:shadow-sm"
-              >
-                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-indigo-100 text-indigo-600">
-                  {resource.type === "video" ? (
-                    <Video className="h-5 w-5" />
-                  ) : (
+            {module.resources.map((resource) =>
+              isValidUrl(resource.url) ? (
+                <a
+                  key={resource.id}
+                  href={resource.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center space-x-4 rounded-xl border border-gray-200 p-4 transition hover:border-indigo-300 hover:bg-indigo-50 hover:shadow-sm"
+                >
+                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-indigo-100 text-indigo-600">
+                    {resource.type === "video" ? (
+                      <Video className="h-5 w-5" />
+                    ) : (
+                      <FileText className="h-5 w-5" />
+                    )}
+                  </div>
+
+                  <div className="flex-1">
+                    <h3 className="font-semibold text-gray-900">
+                      {resource.title}
+                    </h3>
+
+                    <p className="text-sm capitalize text-gray-500">
+                      {resource.type}
+                    </p>
+                  </div>
+
+                  <ExternalLink className="h-5 w-5 text-gray-400" />
+                </a>
+              ) : (
+                <div
+                  key={resource.id}
+                  className="flex items-center space-x-4 rounded-xl border border-gray-200 p-4 opacity-60"
+                >
+                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gray-100 text-gray-400">
                     <FileText className="h-5 w-5" />
-                  )}
-                </div>
+                  </div>
 
-                <div className="flex-1">
-                  <h3 className="font-semibold text-gray-900">{resource.title}</h3>
-                  <p className="text-sm capitalize text-gray-500">{resource.type}</p>
-                </div>
+                  <div className="flex-1">
+                    <h3 className="font-semibold text-gray-900">
+                      {resource.title}
+                    </h3>
 
-                <ExternalLink className="h-5 w-5 text-gray-400" />
-              </a>
-            ))}
+                    <p className="text-sm capitalize text-gray-500">
+                      {resource.type} · unavailable
+                    </p>
+                  </div>
+                </div>
+              )
+            )}
           </div>
+        </div>
+
+        <div className="mb-8 rounded-2xl border border-gray-200 bg-gray-50 p-6">
+          <h2 className="text-xl font-semibold text-gray-900 mb-2">
+            Assessment
+          </h2>
+
+          <p className="text-gray-600 mb-4">
+            Complete a short assessment to mark this theme as completed.
+          </p>
+
+          {module.status === "completed" ? (
+            <div className="flex items-center space-x-2 text-green-700 font-medium">
+              <CheckCircle2 className="h-5 w-5" />
+              <span>Assessment passed. Theme completed.</span>
+            </div>
+          ) : (
+            <button
+              onClick={() => completeModuleAssessment(module.id)}
+              className="inline-flex items-center space-x-2 rounded-lg bg-indigo-600 px-5 py-3 text-white hover:bg-indigo-700"
+            >
+              <CheckCircle2 className="h-5 w-5" />
+              <span>Take assessment</span>
+            </button>
+          )}
         </div>
 
         {module.status === "not-started" && (

@@ -33,14 +33,12 @@ class ToolRegistry:
     def list_names(self) -> list[str]:
         return list(self._tools)
 
-    def execute(self, name: str, raw_arguments: str | None) -> dict[str, Any]:
-        if name not in self._tools:
-            return {"error": f"Unknown tool: {name}"}
+    def execute(self, tool_name: str, raw_arguments: Any) -> Any:
+        tool = self._tools[tool_name]
 
-        tool = self._tools[name]
-        try:
+        if isinstance(raw_arguments, str):
             arguments = json.loads(raw_arguments or "{}")
-        except JSONDecodeError:
-            return {"error": f"Invalid JSON arguments for tool: {name}"}
+        else:
+            arguments = raw_arguments or {}
 
         return tool.handler(arguments)
