@@ -12,9 +12,24 @@ import {
   Legend,
 } from "recharts";
 import { BookOpen, Clock, Award, TrendingUp, CheckCircle2, Target } from "lucide-react";
+import { useEffect, useState } from "react";
+import { getDashboard } from "../api";
 
 export function Dashboard() {
-  const { learningPlan, analytics } = useApp();
+  const { learningPlan, user } = useApp();
+  const [dashboard, setDashboard] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!user?.id) return;
+
+    getDashboard(user.id)
+      .then((data) => {
+        setDashboard(data);
+      })
+      .catch(console.error)
+      .finally(() => setLoading(false));
+  }, [user?.id]);
 
   if (!learningPlan) {
     return (
@@ -26,30 +41,39 @@ export function Dashboard() {
     );
   }
 
+  if (loading || !dashboard) {
+    return (
+      <div className="text-center py-12 text-gray-500">
+        Loading dashboard...
+      </div>
+    );
+  }
+
   const statCards = [
     {
       label: "Total Hours",
-      value: analytics.totalHours,
+      value: dashboard.totalHours,
       icon: <Clock className="h-6 w-6 text-blue-600" />,
       bgColor: "bg-blue-50",
     },
     {
       label: "Modules Completed",
-      value: `${analytics.moduleCompletion.completed}/${analytics.moduleCompletion.total}`,
+      value: `${dashboard.modulesCompleted}/${dashboard.modulesTotal}`,
       icon: <CheckCircle2 className="h-6 w-6 text-green-600" />,
       bgColor: "bg-green-50",
     },
     {
       label: "Technologies Mastered",
-      value: analytics.technologiesMastered.length,
+      value: dashboard.technologiesMastered.length,
       icon: <Award className="h-6 w-6 text-purple-600" />,
       bgColor: "bg-purple-50",
     },
     {
       label: "Assessment Pass Rate",
-      value: analytics.assessmentBreakdown.passed + analytics.assessmentBreakdown.failed > 0
-        ? `${Math.round((analytics.assessmentBreakdown.passed / (analytics.assessmentBreakdown.passed + analytics.assessmentBreakdown.failed)) * 100)}%`
-        : "N/A",
+      value:
+        dashboard.assessmentPassRate !== null
+          ? `${dashboard.assessmentPassRate}%`
+          : "N/A",
       icon: <TrendingUp className="h-6 w-6 text-indigo-600" />,
       bgColor: "bg-indigo-50",
     },
@@ -76,27 +100,91 @@ export function Dashboard() {
         ))}
       </div>
 
+      <div className="grid grid-cols-3 gap-4 mb-6">
+        <div className="rounded-xl bg-indigo-50 p-4">
+          <p className="text-sm text-indigo-600 font-medium">
+            Assessments Passed
+          </p>
+
+          <p className="text-3xl font-bold text-indigo-700 mt-2">
+            {dashboard.weeklyActivity.reduce(
+              (sum, week) => sum + (week.assessmentsPassed ?? 0),
+              0
+            )}
+          </p>
+        </div>
+
+        <div className="rounded-xl bg-green-50 p-4">
+          <p className="text-sm text-green-600 font-medium">
+            Interviews Completed
+          </p>
+
+          <p className="text-3xl font-bold text-green-700 mt-2">
+            {dashboard.weeklyActivity.reduce(
+              (sum, week) => sum + (week.interviewsCompleted ?? 0),
+              0
+            )}
+          </p>
+        </div>
+
+        <div className="rounded-xl bg-purple-50 p-4">
+          <p className="text-sm text-purple-600 font-medium">
+            Average Score
+          </p>
+
+          <p className="text-3xl font-bold text-purple-700 mt-2">
+            {dashboard.assessmentPassRate ?? 0}%
+          </p>
+        </div>
+      </div>
+
+
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="bg-white rounded-lg shadow p-6">
           <h3 className="text-lg font-semibold text-gray-900 mb-4">Weekly Activity</h3>
-          <ResponsiveContainer width="100%" height={250}>
-            <BarChart data={analytics.weeklyActivity}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="week" />
-              <YAxis />
+          <ResponsiveContainer width="100%" height={320}>
+            <BarChart
+              data={dashboard.weeklyActivity}
+              margin={{ top: 20, right: 20, left: 0, bottom: 5 }}
+            >
+              <CartesianGrid strokeDasharray="3 3" vertical={false} />
+
+              <XAxis
+                dataKey="week"
+                tick={{ fontSize: 14 }}
+              />
+
+              <YAxis allowDecimals={false} />
+
               <Tooltip />
-              <Bar dataKey="hours" fill="#4f46e5" />
+
+              <Legend />
+
+              <Bar
+                dataKey="assessmentsPassed"
+                name="Assessments Passed"
+                fill="#6366F1"
+                radius={[8, 8, 0, 0]}
+              />
+
+              <Bar
+                dataKey="interviewsCompleted"
+                name="Interviews Completed"
+                fill="#10B981"
+                radius={[8, 8, 0, 0]}
+              />
             </BarChart>
           </ResponsiveContainer>
+
         </div>
 
         <div className="bg-white rounded-lg shadow p-6">
           <h3 className="text-lg font-semibold text-gray-900 mb-4">
             Interview Score Trend
           </h3>
-          {analytics.interviewScoreTrend.length > 0 ? (
+          {dashboard.interviewScoreTrend.length > 0 ? (
             <ResponsiveContainer width="100%" height={250}>
-              <LineChart data={analytics.interviewScoreTrend}>
+              <LineChart data={dashboard.interviewScoreTrend}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="date" />
                 <YAxis domain={[0, 100]} />
@@ -122,9 +210,9 @@ export function Dashboard() {
           <h3 className="text-lg font-semibold text-gray-900 mb-4">
             Planned vs Actual Hours
           </h3>
-          {analytics.plannedVsActual.length > 0 ? (
+          {dashboard.plannedVsActual.length > 0 ? (
             <ResponsiveContainer width="100%" height={250}>
-              <BarChart data={analytics.plannedVsActual}>
+              <BarChart data={dashboard.plannedVsActual}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="module" />
                 <YAxis />
@@ -145,9 +233,9 @@ export function Dashboard() {
           <h3 className="text-lg font-semibold text-gray-900 mb-4">
             Technologies Mastered
           </h3>
-          {analytics.technologiesMastered.length > 0 ? (
+          {dashboard.technologiesMastered.length > 0 ? (
             <div className="flex flex-wrap gap-2">
-              {analytics.technologiesMastered.map((tech) => (
+              {dashboard.technologiesMastered.map((tech) => (
                 <span
                   key={tech}
                   className="px-3 py-1 bg-indigo-100 text-indigo-800 rounded-full text-sm"

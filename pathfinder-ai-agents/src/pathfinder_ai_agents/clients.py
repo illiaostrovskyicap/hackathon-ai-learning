@@ -186,198 +186,121 @@ class LearnMcpClient:
     def _fallback_results(self, query: str, limit: int) -> list[dict[str, Any]]:
         q = query.lower()
 
-        catalog = [
+        microsoft_catalog = [
         {
-            "keywords": ["html", "semantic", "forms", "accessibility", "markup"],
-            "title": "HTML basics",
-            "url": "https://developer.mozilla.org/en-US/docs/Learn/Getting_started_with_the_web/HTML_basics",
-            "content_type": "documentation",
-            "summary": "HTML structure, semantic elements, forms, and accessibility fundamentals.",
-        },
-        {
-            "keywords": ["css", "layout", "responsive", "flexbox", "grid", "styling"],
-            "title": "CSS layout",
-            "url": "https://developer.mozilla.org/en-US/docs/Learn/CSS/CSS_layout",
-            "content_type": "documentation",
-            "summary": "Responsive layouts with flexbox, grid, and modern CSS techniques.",
-        },
-        {
-            "keywords": ["javascript", "js", "dom", "events", "async", "promise"],
-            "title": "JavaScript first steps",
-            "url": "https://developer.mozilla.org/en-US/docs/Learn/JavaScript/First_steps",
-            "content_type": "documentation",
-            "summary": "JavaScript syntax, DOM manipulation, events, and async programming.",
-        },
-        {
-            "keywords": ["react", "components", "hooks", "state", "props", "jsx"],
-            "title": "React Learn",
-            "url": "https://react.dev/learn",
-            "content_type": "course",
-            "summary": "Official React learning path covering components, hooks, and state management.",
-        },
-        {
-            "keywords": ["react", "routing", "router", "navigation"],
-            "title": "React Router documentation",
-            "url": "https://reactrouter.com/en/main/start/tutorial",
-            "content_type": "documentation",
-            "summary": "Routing, nested routes, navigation, and layouts in React Router.",
-        },
-        {
-            "keywords": ["typescript", "types", "interfaces", "generics", "typing"],
-            "title": "TypeScript Handbook",
-            "url": "https://www.typescriptlang.org/docs/handbook/intro.html",
-            "content_type": "documentation",
-            "summary": "TypeScript fundamentals including types, interfaces, narrowing, and generics.",
-        },
-        {
-            "keywords": ["testing", "unit", "integration", "jest"],
-            "title": "Testing Library React",
-            "url": "https://testing-library.com/docs/react-testing-library/intro/",
-            "content_type": "documentation",
-            "summary": "Modern testing approach for React applications focused on user behavior.",
-        },
-        {
-            "keywords": ["vite", "deployment", "build", "production"],
-            "title": "Deploying a Vite app",
-            "url": "https://vite.dev/guide/static-deploy.html",
-            "content_type": "documentation",
-            "summary": "Production deployment guide for Vite applications.",
-        },
-        {
-            "keywords": ["node", "express", "backend", "server", "api"],
-            "title": "Express routing guide",
-            "url": "https://expressjs.com/en/guide/routing.html",
-            "content_type": "documentation",
-            "summary": "Express routing, middleware, and API endpoint fundamentals.",
-        },
-        {
-            "keywords": ["dotnet", ".net", "asp.net", "api", "backend", "minimal api"],
+            "keywords": ["dotnet", ".net", "asp.net", "c#", "web api", "minimal api", "backend"],
             "title": "Create a web API with ASP.NET Core",
             "url": "https://learn.microsoft.com/aspnet/core/tutorials/first-web-api",
             "content_type": "documentation",
-            "summary": "Official ASP.NET Core API tutorial from Microsoft Learn.",
+            "summary": "Build REST APIs with ASP.NET Core.",
         },
         {
-            "keywords": ["entity framework", "ef core", "orm", "database"],
+            "keywords": ["entity framework", "ef core", "orm", "database", "sql"],
             "title": "Entity Framework Core documentation",
             "url": "https://learn.microsoft.com/ef/core/",
             "content_type": "documentation",
             "summary": "EF Core docs for querying, migrations, relationships, and database access.",
         },
         {
-            "keywords": ["postgres", "postgresql", "sql", "database"],
-            "title": "Azure Database for PostgreSQL documentation",
-            "url": "https://learn.microsoft.com/azure/postgresql/",
-            "content_type": "documentation",
-            "summary": "PostgreSQL setup, connection, security, and scaling on Azure.",
-        },
-        {
-            "keywords": ["azure", "app service", "hosting", "deployment"],
+            "keywords": ["azure", "app service", "hosting", "deployment", "production"],
             "title": "Host ASP.NET Core on Azure App Service",
             "url": "https://learn.microsoft.com/aspnet/core/host-and-deploy/azure-apps/",
             "content_type": "documentation",
-            "summary": "Deployment and hosting guidance for ASP.NET Core on Azure App Service.",
+            "summary": "Deploy and operate ASP.NET Core apps on Azure App Service.",
         },
         {
-            "keywords": ["azure functions", "serverless", "functions"],
+            "keywords": ["azure functions", "serverless", "function", "trigger"],
             "title": "Azure Functions overview",
             "url": "https://learn.microsoft.com/azure/azure-functions/functions-overview",
             "content_type": "documentation",
-            "summary": "Serverless APIs, triggers, bindings, and Azure Functions architecture.",
+            "summary": "Azure Functions concepts, triggers, bindings, and serverless patterns.",
         },
         {
-    "keywords": ["docker", "container", "containerization", "dockerfile", "docker compose", "image"],
-    "title": "Docker getting started",
-    "url": "https://docs.docker.com/get-started/",
-    "content_type": "documentation",
-    "summary": "Official Docker guide for containers, images, Dockerfiles, and basic workflows.",
-},
-{
-    "keywords": ["dockerfile", "image", "container image"],
-    "title": "Dockerfile reference",
-    "url": "https://docs.docker.com/reference/dockerfile/",
-    "content_type": "documentation",
-    "summary": "Official Dockerfile reference.",
-},
-{
-    "keywords": ["docker compose", "compose", "multi-container"],
-    "title": "Docker Compose overview",
-    "url": "https://docs.docker.com/compose/",
-    "content_type": "documentation",
-    "summary": "Official Docker Compose documentation.",
-},
-{
-    "keywords": ["github actions", "ci", "cd", "pipeline"],
-    "title": "GitHub Actions documentation",
-    "url": "https://docs.github.com/actions",
-    "content_type": "documentation",
-    "summary": "Official GitHub Actions documentation.",
-},
-{
-    "keywords": ["javascript", "js", "dom", "events", "async", "promise"],
-    "title": "JavaScript Guide",
-    "url": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Guide",
-    "content_type": "documentation",
-    "summary": "MDN JavaScript guide.",
-},
-{
-    "keywords": ["react", "components", "hooks", "state", "props"],
-    "title": "React Learn",
-    "url": "https://react.dev/learn",
-    "content_type": "course",
-    "summary": "Official React learning path.",
-},
-{
-    "keywords": ["typescript", "types", "interfaces", "generics"],
-    "title": "TypeScript Handbook",
-    "url": "https://www.typescriptlang.org/docs/handbook/intro.html",
-    "content_type": "documentation",
-    "summary": "Official TypeScript handbook.",
-},
-{
-    "keywords": ["testing", "unit", "integration", "react testing"],
-    "title": "Testing Library React",
-    "url": "https://testing-library.com/docs/react-testing-library/intro/",
-    "content_type": "documentation",
-    "summary": "React Testing Library docs.",
-},
-{
-    "keywords": ["fastapi", "python", "api"],
-    "title": "FastAPI tutorial",
-    "url": "https://fastapi.tiangolo.com/tutorial/",
-    "content_type": "documentation",
-    "summary": "Official FastAPI tutorial.",
-},
-{
-    "keywords": ["node", "express", "backend", "api"],
-    "title": "Express routing guide",
-    "url": "https://expressjs.com/en/guide/routing.html",
-    "content_type": "documentation",
-    "summary": "Express routing documentation.",
-},
-        {
-            "keywords": ["github actions", "ci", "cd", "pipeline"],
-            "title": "GitHub Actions documentation",
-            "url": "https://docs.github.com/actions",
+            "keywords": ["postgres", "postgresql", "azure database", "database"],
+            "title": "Azure Database for PostgreSQL documentation",
+            "url": "https://learn.microsoft.com/azure/postgresql/",
             "content_type": "documentation",
-            "summary": "CI/CD pipelines and automation using GitHub Actions.",
+            "summary": "Azure PostgreSQL setup, connection, security, and operations.",
         },
         {
-            "keywords": ["monitoring", "logging", "observability", "metrics"],
+            "keywords": ["azure monitor", "monitoring", "logging", "observability", "metrics"],
             "title": "Azure Monitor overview",
             "url": "https://learn.microsoft.com/azure/azure-monitor/overview",
             "content_type": "documentation",
-            "summary": "Monitoring, metrics, alerts, and observability for cloud applications.",
+            "summary": "Metrics, logs, alerts, and observability with Azure Monitor.",
         },
         {
-            "keywords": ["python", "fastapi", "api"],
-            "title": "FastAPI tutorial",
-            "url": "https://fastapi.tiangolo.com/tutorial/",
+            "keywords": ["identity", "authentication", "authorization", "jwt", "oauth", "entra"],
+            "title": "Microsoft identity platform documentation",
+            "url": "https://learn.microsoft.com/entra/identity-platform/",
             "content_type": "documentation",
-            "summary": "Official FastAPI tutorial for building Python APIs.",
+            "summary": "Authentication, authorization, OAuth, OpenID Connect, and Microsoft identity platform.",
+        },
+        {
+            "keywords": ["maui", ".net maui", "mobile", "android", "ios", "cross-platform"],
+            "title": ".NET MAUI documentation",
+            "url": "https://learn.microsoft.com/dotnet/maui/",
+            "content_type": "documentation",
+            "summary": "Build cross-platform mobile and desktop apps with .NET MAUI.",
+        },
+        {
+            "keywords": ["blazor", "webassembly", "components"],
+            "title": "ASP.NET Core Blazor documentation",
+            "url": "https://learn.microsoft.com/aspnet/core/blazor/",
+            "content_type": "documentation",
+            "summary": "Build interactive web UIs with Blazor.",
         },
     ]
 
+        external_catalog = [
+        {
+            "keywords": ["html", "semantic", "forms", "accessibility", "markup"],
+            "title": "HTML basics",
+            "url": "https://developer.mozilla.org/en-US/docs/Learn/Getting_started_with_the_web/HTML_basics",
+            "content_type": "documentation",
+            "summary": "HTML structure and semantic markup fundamentals.",
+        },
+        {
+            "keywords": ["css", "layout", "responsive", "flexbox", "grid"],
+            "title": "CSS layout",
+            "url": "https://developer.mozilla.org/en-US/docs/Learn/CSS/CSS_layout",
+            "content_type": "documentation",
+            "summary": "Responsive layouts with flexbox and grid.",
+        },
+        {
+            "keywords": ["javascript", "js", "dom", "events", "async", "promise"],
+            "title": "JavaScript Guide",
+            "url": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Guide",
+            "content_type": "documentation",
+            "summary": "JavaScript fundamentals, DOM, events, and async programming.",
+        },
+        {
+            "keywords": ["react", "components", "hooks", "state", "props"],
+            "title": "React Learn",
+            "url": "https://react.dev/learn",
+            "content_type": "course",
+            "summary": "Official React learning path.",
+        },
+        {
+            "keywords": ["docker", "container", "dockerfile", "compose"],
+            "title": "Docker getting started",
+            "url": "https://docs.docker.com/get-started/",
+            "content_type": "documentation",
+            "summary": "Docker basics for containers, images, and workflows.",
+        },
+    ]
+
+        microsoft_results = self._rank_catalog(microsoft_catalog, q)
+        external_results = self._rank_catalog(external_catalog, q)
+
+        results = microsoft_results + external_results
+
+        if not results:
+            results = microsoft_catalog[:2] + external_catalog[:2]
+
+        return results[:limit]
+    
+    def _rank_catalog(self, catalog: list[dict[str, Any]], q: str) -> list[dict[str, Any]]:
         scored: list[tuple[int, dict[str, Any]]] = []
 
         for item in catalog:
@@ -387,41 +310,23 @@ class LearnMcpClient:
                 if keyword in q:
                     score += 3
 
-            title_words = item["title"].lower().split()
-
-            for word in title_words:
+            for word in item["title"].lower().split():
                 if len(word) > 3 and word in q:
                     score += 1
 
             if score > 0:
                 scored.append((score, item))
 
-        if not scored:
-            scored = [(1, item) for item in catalog]
-
         scored.sort(key=lambda x: x[0], reverse=True)
 
-        results = []
-        seen_urls = set()
-
-        for _, item in scored:
-            if item["url"] in seen_urls:
-                continue
-
-            seen_urls.add(item["url"])
-
-            results.append(
-                {
-                    "title": item["title"],
-                    "url": item["url"],
-                    "source_tool": "fallback_catalog",
-                    "content_type": item["content_type"],
-                    "summary": item["summary"],
-                    "matched_skills": item["keywords"][:3],
-                }
-            )
-
-            if len(results) >= limit:
-                break
-
-        return results
+        return [
+            {
+            "title": item["title"],
+            "url": item["url"],
+            "source_tool": "fallback_catalog",
+            "content_type": item["content_type"],
+            "summary": item["summary"],
+            "matched_skills": item["keywords"][:3],
+            }
+            for _, item in scored
+        ]
