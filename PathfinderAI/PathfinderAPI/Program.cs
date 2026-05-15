@@ -2,6 +2,7 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddOpenApi();
 builder.Services.AddControllers();
 builder.Services.AddHttpClient();
+builder.Services.AddSingleton<AdaptiveLearningService>();
 
 builder.Services.AddCors(options =>
 {

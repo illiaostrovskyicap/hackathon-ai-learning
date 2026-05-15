@@ -1,0 +1,7 @@
+INFO:pathfinder_ai_agents.observability:Application Insights connection string is not configured; tracing disabled.
+INFO:     Started server process [75527]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:8088 (Press CTRL+C to quit)
+INFO:     127.0.0.1:61522 - "GET /healthz HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61524 - "GET /healthz HTTP/1.1" 200 OK

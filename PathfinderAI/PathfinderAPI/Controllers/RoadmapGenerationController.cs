@@ -12,13 +12,16 @@ public class RoadmapGenerationController : ControllerBase
 {
     private readonly IConfiguration _configuration;
     private readonly IHttpClientFactory _httpClientFactory;
+    private readonly AdaptiveLearningService _adaptiveLearningService;
 
     public RoadmapGenerationController(
         IConfiguration configuration,
-        IHttpClientFactory httpClientFactory)
+        IHttpClientFactory httpClientFactory,
+        AdaptiveLearningService adaptiveLearningService)
     {
         _configuration = configuration;
         _httpClientFactory = httpClientFactory;
+        _adaptiveLearningService = adaptiveLearningService;
     }
 
     [HttpGet("active")]
@@ -61,11 +64,16 @@ public class RoadmapGenerationController : ControllerBase
     public async Task<IActionResult> GenerateRoadmap([FromBody] GenerateRoadmapRequest request)
     {
         var agentsBaseUrl = _configuration["Agents:BaseUrl"];
-
-        if (string.IsNullOrWhiteSpace(agentsBaseUrl))
+        var onboardingSnapshot = new OnboardingSnapshotResponse
         {
-            return StatusCode(500, new { message = "Agents:BaseUrl is missing" });
-        }
+            Track = request.Track,
+            Experience = request.Experience,
+            Language = request.Language,
+            Goal = request.Goal,
+            WeeklyHours = request.WeeklyHours <= 0 ? 6 : request.WeeklyHours,
+            FocusAreas = request.FocusAreas,
+            CreatedAtUtc = DateTimeOffset.UtcNow
+        };
 
         var agentPayload = new
         {
@@ -111,21 +119,26 @@ public class RoadmapGenerationController : ControllerBase
 
         var client = _httpClientFactory.CreateClient();
 
-        var agentResponse = await client.PostAsJsonAsync(
-            $"{agentsBaseUrl.TrimEnd('/')}/api/agents/invoke",
-            agentPayload
-        );
-
-        var body = await agentResponse.Content.ReadAsStringAsync();
-
         AiRoadmapResponse? aiRoadmap;
-
-        if (!agentResponse.IsSuccessStatusCode)
+        if (string.IsNullOrWhiteSpace(agentsBaseUrl))
         {
             aiRoadmap = BuildFallbackRoadmap(request);
         }
         else
         {
+            var agentResponse = await client.PostAsJsonAsync(
+                $"{agentsBaseUrl.TrimEnd('/')}/api/agents/invoke",
+                agentPayload
+            );
+
+            var body = await agentResponse.Content.ReadAsStringAsync();
+
+            if (!agentResponse.IsSuccessStatusCode)
+            {
+                aiRoadmap = BuildFallbackRoadmap(request);
+            }
+            else
+            {
             var agent = JsonSerializer.Deserialize<AgentInvokeResponse>(
                 body,
                 new JsonSerializerOptions { PropertyNameCaseInsensitive = true }
@@ -152,15 +165,22 @@ public class RoadmapGenerationController : ControllerBase
             {
                 aiRoadmap = BuildFallbackRoadmap(request);
             }
+            }
         }
+
+        var initialSkillMatrix = _adaptiveLearningService.InitializeSkillMatrix(onboardingSnapshot);
 
         var plan = new LearningPlanResponse
         {
             Id = "plan-" + Guid.NewGuid(),
+            UserId = request.UserId,
             Track = request.Track,
             Experience = request.Experience,
             Language = request.Language,
             GeneratedAt = DateTimeOffset.UtcNow,
+            OnboardingSnapshot = onboardingSnapshot,
+            SkillMatrix = initialSkillMatrix,
+            AdaptiveState = new AdaptivePathwayResponse(),
             Modules = aiRoadmap?.Themes.Select((theme, index) => new ModuleResponse
             {
                 Id = $"mod-{index + 1}",
@@ -179,6 +199,8 @@ public class RoadmapGenerationController : ControllerBase
                     Topics = lesson.Topics,
                     ProjectTask = lesson.ProjectTask,
                     ResourceQuery = lesson.ResourceQuery,
+                    Status = "not-started",
+                    Skills = AdaptiveLearningService.InferSkills(request.Track, lesson.Topics, lesson.Title),
                     Resources = new List<ResourceResponse>()
                 }).ToList()
             }).ToList() ?? new List<ModuleResponse>()
@@ -189,6 +211,15 @@ public class RoadmapGenerationController : ControllerBase
             if (module.SubModules.Count > 0)
             {
                 module.EstimatedHours = module.SubModules.Sum(x => x.EstimatedHours);
+                module.Skills = module.SubModules
+                    .SelectMany(x => x.Skills)
+                    .GroupBy(x => x.Key, StringComparer.OrdinalIgnoreCase)
+                    .Select(g => g.OrderByDescending(x => x.Weight).First())
+                    .ToList();
+            }
+            else
+            {
+                module.Skills = AdaptiveLearningService.InferSkills(request.Track, module.Topics, module.Title);
             }
         }
 
@@ -212,13 +243,15 @@ public class RoadmapGenerationController : ControllerBase
                     Resources = new List<ResourceResponse>()
                 };
 
-                sub.Resources = await LoadResourcesForModule(
-                    client,
-                    agentsBaseUrl,
-                    request.Track,
-                    resourceQueryModule,
-                    i * 10 + j
-                );
+                sub.Resources = string.IsNullOrWhiteSpace(agentsBaseUrl)
+                    ? CreateFallbackResources(resourceQueryModule, i * 10 + j)
+                    : await LoadResourcesForModule(
+                        client,
+                        agentsBaseUrl,
+                        request.Track,
+                        resourceQueryModule,
+                        i * 10 + j
+                    );
 
                 themeResources.AddRange(sub.Resources);
             }
@@ -241,6 +274,7 @@ public class RoadmapGenerationController : ControllerBase
             await db.OpenAsync();
 
             await EnsureLearningPlansTable(db);
+            await EnsureUserLearningProfilesTable(db);
 
             var planJson = JsonSerializer.Serialize(plan);
 
@@ -264,6 +298,27 @@ public class RoadmapGenerationController : ControllerBase
             saveCommand.Parameters.AddWithValue("planJson", planJson);
 
             await saveCommand.ExecuteNonQueryAsync();
+
+            var skillMatrixJson = JsonSerializer.Serialize(plan.SkillMatrix);
+            var onboardingSnapshotJson = JsonSerializer.Serialize(plan.OnboardingSnapshot);
+
+            await using var saveProfileCommand = new NpgsqlCommand(
+                """
+                INSERT INTO user_learning_profiles (user_id, onboarding_snapshot_json, skill_matrix_json, created_at, updated_at)
+                VALUES (@userId, CAST(@onboardingSnapshotJson AS JSONB), CAST(@skillMatrixJson AS JSONB), NOW(), NOW())
+                ON CONFLICT (user_id)
+                DO UPDATE SET
+                onboarding_snapshot_json = EXCLUDED.onboarding_snapshot_json,
+                skill_matrix_json = EXCLUDED.skill_matrix_json,
+                updated_at = NOW();
+                """,
+                db
+            );
+
+            saveProfileCommand.Parameters.AddWithValue("userId", userGuid);
+            saveProfileCommand.Parameters.AddWithValue("onboardingSnapshotJson", onboardingSnapshotJson);
+            saveProfileCommand.Parameters.AddWithValue("skillMatrixJson", skillMatrixJson);
+            await saveProfileCommand.ExecuteNonQueryAsync();
 
             await using var updateUserCommand = new NpgsqlCommand(
                 """
@@ -641,6 +696,24 @@ public class RoadmapGenerationController : ControllerBase
         await command.ExecuteNonQueryAsync();
     }
 
+    private static async Task EnsureUserLearningProfilesTable(NpgsqlConnection connection)
+    {
+        await using var command = new NpgsqlCommand(
+            """
+            CREATE TABLE IF NOT EXISTS user_learning_profiles (
+                user_id UUID PRIMARY KEY,
+                onboarding_snapshot_json JSONB NOT NULL,
+                skill_matrix_json JSONB NOT NULL,
+                created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+                updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+            );
+            """,
+            connection
+        );
+
+        await command.ExecuteNonQueryAsync();
+    }
+
 
 
 
@@ -702,10 +775,14 @@ public class AgentInvokeResponse
 public class LearningPlanResponse
 {
     public string Id { get; set; } = "";
+    public string? UserId { get; set; }
     public string Track { get; set; } = "";
     public string Experience { get; set; } = "";
     public string Language { get; set; } = "";
     public DateTimeOffset GeneratedAt { get; set; }
+    public OnboardingSnapshotResponse OnboardingSnapshot { get; set; } = new();
+    public SkillMatrixResponse SkillMatrix { get; set; } = new();
+    public AdaptivePathwayResponse AdaptiveState { get; set; } = new();
     public List<ModuleResponse> Modules { get; set; } = new();
 }
 
@@ -716,7 +793,11 @@ public class ModuleResponse
     public string Description { get; set; } = "";
     public int EstimatedHours { get; set; }
     public string Status { get; set; } = "not-started";
+    public DateTimeOffset? StartedAt { get; set; }
+    public DateTimeOffset? CompletedAt { get; set; }
+    public DateTimeOffset? LastOpenedAt { get; set; }
     public List<string> Topics { get; set; } = new();
+    public List<SkillReferenceResponse> Skills { get; set; } = new();
     public List<ResourceResponse> Resources { get; set; } = new();
     public List<SubModuleResponse> SubModules { get; set; } = new();
     [JsonIgnore]
@@ -729,7 +810,12 @@ public class SubModuleResponse
     public string Title { get; set; } = "";
     public string Description { get; set; } = "";
     public int EstimatedHours { get; set; }
+    public string Status { get; set; } = "not-started";
+    public DateTimeOffset? StartedAt { get; set; }
+    public DateTimeOffset? CompletedAt { get; set; }
+    public DateTimeOffset? LastOpenedAt { get; set; }
     public List<string> Topics { get; set; } = new();
+    public List<SkillReferenceResponse> Skills { get; set; } = new();
     public string ProjectTask { get; set; } = "";
     [JsonIgnore]
     public string ResourceQuery { get; set; } = "";

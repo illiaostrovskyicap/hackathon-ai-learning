@@ -5,7 +5,14 @@ import { ArrowLeft, BookOpen, Video, FileText, CheckCircle2, PlayCircle, Externa
 
 export function ModuleDetail() {
   const { moduleId } = useParams();
-  const { learningPlan, updateModuleStatus, submitAssessment, completeModuleAssessment } = useApp();
+  const {
+    learningPlan,
+    openModule,
+    openSubModule,
+    completeSubModule,
+    submitAssessment,
+    completeModuleAssessment,
+  } = useApp();
   const isValidUrl = (url?: string) =>
   !!url && url !== "#" && (url.startsWith("http://") || url.startsWith("https://"));
   const navigate = useNavigate();
@@ -23,7 +30,7 @@ export function ModuleDetail() {
   }
 
   const handleStartModule = () => {
-    updateModuleStatus(module.id, "in-progress");
+    void openModule(module.id);
   };
 
   const handleStartAssessment = () => {
@@ -31,8 +38,8 @@ export function ModuleDetail() {
     setAnswers(new Array(module.assessment?.questions.length || 0).fill(-1));
   };
 
-  const handleSubmitAssessment = () => {
-    submitAssessment(module.id, answers);
+  const handleSubmitAssessment = async () => {
+    await submitAssessment(module.id, answers);
     setShowAssessment(false);
     navigate("/roadmap");
   };
@@ -159,6 +166,18 @@ export function ModuleDetail() {
                         </div>
                       </div>
 
+                      <div className="mt-3 flex items-center gap-2">
+                        <StatusBadge status={subModule.status} />
+                        {subModule.skills?.map((skill: any) => (
+                          <span
+                            key={skill.key}
+                            className="rounded-full bg-slate-100 px-2 py-1 text-xs text-slate-700"
+                          >
+                            {skill.name}
+                          </span>
+                        ))}
+                      </div>
+
                       <div className="flex flex-wrap gap-2 mt-3">
                         {(subModule.topics ?? []).map((topic: string) => (
                           <span
@@ -176,6 +195,33 @@ export function ModuleDetail() {
                         </div>
                       )}
 
+                      <div className="mt-4 flex flex-wrap gap-3">
+                        {subModule.status === "not-started" && (
+                          <button
+                            onClick={() => void openSubModule(subModule.id)}
+                            className="inline-flex items-center space-x-2 rounded-lg border border-indigo-200 bg-indigo-50 px-4 py-2 text-sm font-medium text-indigo-700 hover:bg-indigo-100"
+                          >
+                            <PlayCircle className="h-4 w-4" />
+                            <span>Start lesson</span>
+                          </button>
+                        )}
+
+                        {subModule.status !== "completed" && (
+                          <button
+                            onClick={() =>
+                              void completeSubModule(subModule.id, {
+                                minutesSpent: subModule.estimatedHours * 60,
+                                resourceTitle: subModule.title,
+                              })
+                            }
+                            className="inline-flex items-center space-x-2 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700"
+                          >
+                            <CheckCircle2 className="h-4 w-4" />
+                            <span>Mark finished</span>
+                          </button>
+                        )}
+                      </div>
+
                       {subModule.resources?.length > 0 && (
                         <div className="mt-4 space-y-2">
                           {subModule.resources.map((resource: any) =>
@@ -185,6 +231,7 @@ export function ModuleDetail() {
                                 href={resource.url}
                                 target="_blank"
                                 rel="noopener noreferrer"
+                                onClick={() => void openSubModule(subModule.id)}
                                 className="block rounded-lg border border-gray-200 p-3 hover:bg-gray-50 transition"
                               >
                                 <div className="font-medium text-gray-900">
@@ -231,6 +278,7 @@ export function ModuleDetail() {
                   href={resource.url}
                   target="_blank"
                   rel="noopener noreferrer"
+                  onClick={() => void openModule(module.id)}
                   className="flex items-center space-x-4 rounded-xl border border-gray-200 p-4 transition hover:border-indigo-300 hover:bg-indigo-50 hover:shadow-sm"
                 >
                   <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-indigo-100 text-indigo-600">
@@ -293,7 +341,7 @@ export function ModuleDetail() {
             </div>
           ) : (
             <button
-              onClick={() => completeModuleAssessment(module.id)}
+              onClick={() => void completeModuleAssessment(module.id)}
               className="inline-flex items-center space-x-2 rounded-lg bg-indigo-600 px-5 py-3 text-white hover:bg-indigo-700"
             >
               <CheckCircle2 className="h-5 w-5" />

@@ -3,7 +3,7 @@ import { useNavigate } from "react-router";
 import { BookOpen, Clock, CheckCircle2, PlayCircle, Circle } from "lucide-react";
 
 export function Roadmap() {
-  const { learningPlan } = useApp();
+  const { learningPlan, openModule } = useApp();
   console.log("ROADMAP CONTEXT lp: ", learningPlan);
   console.log("ROADMAP localstorage lp: ", localStorage.getItem("learningPlan"));
   const navigate = useNavigate();
@@ -79,6 +79,34 @@ export function Roadmap() {
         </div>
       </div>
 
+      {(learningPlan.skillMatrix?.weakSkills?.length > 0 ||
+        learningPlan.adaptiveState?.updates?.length > 0) && (
+        <div className="grid gap-4 md:grid-cols-2">
+          <div className="rounded-lg border border-amber-200 bg-amber-50 p-5">
+            <div className="text-sm font-semibold text-amber-900">Weak Skills</div>
+            <div className="mt-2 flex flex-wrap gap-2">
+              {learningPlan.skillMatrix.weakSkills.map((skill) => (
+                <span
+                  key={skill}
+                  className="rounded-full bg-white px-3 py-1 text-xs font-medium text-amber-800"
+                >
+                  {skill}
+                </span>
+              ))}
+            </div>
+          </div>
+
+          <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-5">
+            <div className="text-sm font-semibold text-emerald-900">Adaptive Updates</div>
+            <div className="mt-2 text-sm text-emerald-800">
+              {learningPlan.adaptiveState?.updates?.length
+                ? learningPlan.adaptiveState.updates[learningPlan.adaptiveState.updates.length - 1].summary
+                : "No pathway upgrades yet."}
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="space-y-4">
         {normalizedModules.map((module, index) => {
           const previousModule = normalizedModules[index - 1];
@@ -97,7 +125,7 @@ export function Roadmap() {
                 }`}
               onClick={() => {
                 if (!isLocked) {
-                  navigate(`/module/${module.id}`);
+                  void openModule(module.id).finally(() => navigate(`/module/${module.id}`));
                 }
               }}
             >

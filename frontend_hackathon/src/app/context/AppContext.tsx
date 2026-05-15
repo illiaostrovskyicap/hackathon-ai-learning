@@ -1,6 +1,11 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import { login } from "../api";
-import { generateLearningPlan, getActiveLearningPlan, sendInterviewMessage as sendInterviewMessageApi } from "../api";
+import {
+  generateLearningPlan,
+  getActiveLearningPlan,
+  sendInterviewMessage as sendInterviewMessageApi,
+  updateLearningProgress,
+} from "../api";
 
 export interface User {
   id: string;
@@ -18,10 +23,14 @@ export interface User {
 
 export interface LearningPlan {
   id: string;
+  userId?: string;
   track: string;
   experience: string;
   language: string;
   generatedAt: string;
+  onboardingSnapshot: OnboardingSnapshot;
+  skillMatrix: SkillMatrix;
+  adaptiveState: AdaptiveState;
   modules: Module[];
 }
 
@@ -31,9 +40,73 @@ export interface Module {
   description: string;
   estimatedHours: number;
   status: "not-started" | "in-progress" | "completed";
+  startedAt?: string;
+  completedAt?: string;
+  lastOpenedAt?: string;
   topics: string[];
+  skills: SkillReference[];
   resources: Resource[];
+  subModules: SubModule[];
   assessment?: Assessment;
+}
+
+export interface SubModule {
+  id: string;
+  title: string;
+  description: string;
+  estimatedHours: number;
+  status: "not-started" | "in-progress" | "completed";
+  startedAt?: string;
+  completedAt?: string;
+  lastOpenedAt?: string;
+  topics: string[];
+  skills: SkillReference[];
+  projectTask: string;
+  resources: Resource[];
+}
+
+export interface SkillReference {
+  key: string;
+  name: string;
+  weight: number;
+}
+
+export interface SkillProgress {
+  key: string;
+  name: string;
+  score: number;
+  level: "beginner" | "intermediate" | "advanced";
+  lastUpdatedAt: string;
+}
+
+export interface SkillMatrix {
+  skills: SkillProgress[];
+  weakSkills: string[];
+}
+
+export interface OnboardingSnapshot {
+  track: string;
+  experience: string;
+  language: string;
+  goal: string;
+  weeklyHours: number;
+  focusAreas: string[];
+  createdAtUtc: string;
+}
+
+export interface AdaptivePathwayUpdate {
+  triggeredAt: string;
+  skillKey: string;
+  skillName: string;
+  previousLevel: string;
+  newLevel: string;
+  targetModuleId: string;
+  addedSubModuleId: string;
+  summary: string;
+}
+
+export interface AdaptiveState {
+  updates: AdaptivePathwayUpdate[];
 }
 
 export interface Resource {
@@ -127,8 +200,14 @@ interface AppContextType {
   focusAreas: string[]
 ) => Promise<void>;
   learningPlan: LearningPlan | null;
-  updateModuleStatus: (moduleId: string, status: Module["status"]) => void;
-  submitAssessment: (moduleId: string, answers: number[]) => void;
+  openModule: (moduleId: string) => Promise<void>;
+  completeModule: (moduleId: string, options?: { assessmentScore?: number }) => Promise<void>;
+  openSubModule: (subModuleId: string) => Promise<void>;
+  completeSubModule: (
+    subModuleId: string,
+    options?: { minutesSpent?: number; assessmentScore?: number; reflection?: string; resourceTitle?: string }
+  ) => Promise<void>;
+  submitAssessment: (moduleId: string, answers: number[]) => Promise<void>;
   analytics: AnalyticsData;
   subscription: Subscription;
   upgradeSubscription: (tier: "pro" | "enterprise") => void;
@@ -141,7 +220,7 @@ interface AppContextType {
   addContent: (content: Omit<ContentItem, "id" | "createdAt" | "updatedAt">) => void;
   updateContent: (id: string, updates: Partial<ContentItem>) => void;
   deleteContent: (id: string) => void;
-  completeModuleAssessment: (moduleId: string) => void;
+  completeModuleAssessment: (moduleId: string) => Promise<void>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -277,22 +356,57 @@ export function AppProvider({ children }: { children: ReactNode }) {
   };
 
 
-  const updateModuleStatus = (moduleId: string, status: Module["status"]) => {
-    if (!learningPlan) return;
-
-    const updatedModules = learningPlan.modules.map((m) =>
-      m.id === moduleId ? { ...m, status } : m
-    );
-
-    const updatedPlan = { ...learningPlan, modules: updatedModules };
-    setLearningPlan(updatedPlan);
-    localStorage.setItem("learningPlan", JSON.stringify(updatedPlan));
-    updateAnalytics(updatedPlan);
+  const persistPlan = (plan: LearningPlan) => {
+    setLearningPlan(plan);
+    localStorage.setItem("learningPlan", JSON.stringify(plan));
+    updateAnalytics(plan);
   };
 
-  const submitAssessment = (moduleId: string, answers: number[]) => {
+  const applyServerProgress = async (
+    itemType: "module" | "submodule",
+    itemId: string,
+    action: "open" | "complete",
+    options?: { minutesSpent?: number; assessmentScore?: number; reflection?: string; resourceTitle?: string }
+  ) => {
+    if (!learningPlan || !user) return;
+
+    const result = await updateLearningProgress(learningPlan.id, {
+      userId: user.id,
+      itemType,
+      itemId,
+      action,
+      minutesSpent: options?.minutesSpent,
+      assessmentScore: options?.assessmentScore,
+      reflection: options?.reflection,
+      resourceTitle: options?.resourceTitle,
+    });
+
+    persistPlan(result.learningPlan);
+  };
+
+  const openModule = async (moduleId: string) => {
+    await applyServerProgress("module", moduleId, "open");
+  };
+
+  const completeModule = async (moduleId: string, options?: { assessmentScore?: number }) => {
+    await applyServerProgress("module", moduleId, "complete", options);
+  };
+
+  const openSubModule = async (subModuleId: string) => {
+    await applyServerProgress("submodule", subModuleId, "open");
+  };
+
+  const completeSubModule = async (
+    subModuleId: string,
+    options?: { minutesSpent?: number; assessmentScore?: number; reflection?: string; resourceTitle?: string }
+  ) => {
+    await applyServerProgress("submodule", subModuleId, "complete", options);
+  };
+
+  const submitAssessment = async (moduleId: string, answers: number[]) => {
     if (!learningPlan) return;
 
+    let assessmentScore = 0;
     const updatedModules = learningPlan.modules.map((m) => {
       if (m.id === moduleId && m.assessment) {
         const questionsWithAnswers = m.assessment.questions.map((q, idx) => ({
@@ -305,6 +419,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         ).length;
 
         const score = (correctCount / questionsWithAnswers.length) * 100;
+        assessmentScore = score;
 
         return {
           ...m,
@@ -321,12 +436,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
     });
 
     const updatedPlan = { ...learningPlan, modules: updatedModules };
-    setLearningPlan(updatedPlan);
-    localStorage.setItem("learningPlan", JSON.stringify(updatedPlan));
-    updateAnalytics(updatedPlan);
+    persistPlan(updatedPlan);
+    await completeModule(moduleId, { assessmentScore });
   };
 
-  const completeModuleAssessment = (moduleId: string) => {
+  const completeModuleAssessment = async (moduleId: string) => {
     if (!learningPlan) return;
 
     const updatedPlan = {
@@ -334,19 +448,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
       modules: learningPlan.modules.map((module) =>
         module.id === moduleId
           ? {
-            ...module,
-            status: "completed" as const,
-            assessment: {
-              ...(module.assessment ?? {}),
-              score: 100,
-            },
-          }
+              ...module,
+              assessment: {
+                ...(module.assessment ?? {}),
+                score: 100,
+              },
+            }
           : module
       ),
     };
 
-    setLearningPlan(updatedPlan);
-    localStorage.setItem("learningPlan", JSON.stringify(updatedPlan));
+    persistPlan(updatedPlan);
+    await completeModule(moduleId, { assessmentScore: 100 });
   };
 
   const upgradeSubscription = (tier: "pro" | "enterprise") => {
@@ -583,7 +696,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
         deleteAccount,
         completeOnboarding,
         learningPlan,
-        updateModuleStatus,
+        openModule,
+        completeModule,
+        openSubModule,
+        completeSubModule,
         submitAssessment,
         analytics,
         subscription,
